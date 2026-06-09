@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_06_09_174625) do
+ActiveRecord::Schema[8.0].define(version: 2026_06_09_175406) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -24,4 +24,33 @@ ActiveRecord::Schema[8.0].define(version: 2026_06_09_174625) do
     t.index ["name"], name: "index_provinces_on_name", unique: true
     t.index ["schedule_fetch"], name: "index_provinces_on_schedule_fetch"
   end
+
+  create_table "real_estate_sources", force: :cascade do |t|
+    t.string "supplier", null: false
+    t.string "external_id", null: false
+    t.bigint "province_id", null: false
+    t.string "status", default: "active", null: false
+    t.jsonb "raw_data", default: {}, null: false
+    t.string "address"
+    t.string "province"
+    t.string "district_or_city"
+    t.string "ward"
+    t.string "street"
+    t.decimal "area", precision: 12, scale: 2
+    t.bigint "price"
+    t.string "type"
+    t.string "image_urls", default: [], null: false, array: true
+    t.string "source_url"
+    t.decimal "latitude", precision: 10, scale: 7
+    t.decimal "longitude", precision: 10, scale: 7
+    t.datetime "last_seen_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["province_id"], name: "index_real_estate_sources_on_province_id"
+    t.index ["status"], name: "index_real_estate_sources_on_status"
+    t.index ["supplier", "external_id"], name: "index_real_estate_sources_on_supplier_and_external_id", unique: true
+    t.index ["supplier", "province_id"], name: "index_real_estate_sources_on_supplier_and_province_id"
+  end
+
+  add_foreign_key "real_estate_sources", "provinces"
 end

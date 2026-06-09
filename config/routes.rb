@@ -6,4 +6,5 @@ Rails.application.routes.draw do
   get "up" => "rails/health#show", as: :rails_health_check
 
   resources :provinces, only: [:index, :update]
+  resources :real_estate_sources, only: [:index]
 end

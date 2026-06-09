@@ -73,6 +73,43 @@ paths:
               schema:
                 $ref: "#/components/schemas/Errors"
 
+  /real_estate_sources:
+    get:
+      summary: List stored sources (tracer-bullet read-back)
+      operationId: listRealEstateSources
+      parameters:
+        - name: supplier
+          in: query
+          schema:
+            type: string
+        - name: province_id
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, inactive]
+      responses:
+        "200":
+          description: Stored sources, newest-seen first.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  real_estate_sources:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/RealEstateSource"
+        "422":
+          description: Invalid filter.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Errors"
+
 components:
   schemas:
     Province:
@@ -90,6 +127,28 @@ components:
           type: boolean
         fetch_page_depth:
           type: integer
+    RealEstateSource:
+      type: object
+      properties:
+        id: { type: integer }
+        supplier: { type: string }
+        external_id: { type: string }
+        status: { type: string, enum: [active, inactive] }
+        source_url: { type: string }
+        type: { type: string, enum: [condo, house, land, commercial, other] }
+        price: { type: integer, description: VND }
+        area: { type: number, description: square meters }
+        address: { type: string }
+        province: { type: string, description: raw parsed string (drifts) }
+        district_or_city: { type: string }
+        ward: { type: string }
+        street: { type: string, nullable: true }
+        image_urls:
+          type: array
+          items: { type: string }
+        latitude: { type: number }
+        longitude: { type: number }
+        last_seen_at: { type: string, format: date-time }
     Errors:
       type: object
       properties:
