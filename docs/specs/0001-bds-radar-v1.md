@@ -43,22 +43,29 @@ List: `GET https://mogi.vn/<province-slug>/mua-nha-dat` (paginated). Detail: `GE
 ### `provinces` — crawl-control surface
 `name`, `alternatives:string[]` (e.g. `TPHCM`, `Sài Gòn` → HCM), **`schedule_fetch:boolean`** (default false), `fetch_page_depth:integer` (default 5). Seeded from the post-2025 canonical province list. Per-supplier region codes (nhatot `region_v2`, mogi slug) are **hard-coded in each Supplier subclass**, not here (the DB owns *what* to crawl; the Supplier owns *how* to address it).
 
-### `ward_cities` — best-effort label reference
-`ward`, `city`, `ward_alternatives:string[]`, `city_alternatives:string[]`. Unique on `(ward, city)` at DB level; app-level validation guards alternative uniqueness. Canonicalizes the Administrative path; **not** the location identity.
+### `ward_cities` — best-effort label reference (post-2025 **2-tier** canonical)
+`ward`, `province`, `ward_alternatives:string[]`, `province_alternatives:string[]`. Unique on `(ward, province)` at DB level; app-level validation guards alternative uniqueness. Canonicalizes the Administrative path; **not** the location identity.
+- `province` here is the **top-tier province/city** (HCM, Hà Nội) — the post-2025 reform collapsed 3-tier → 2-tier, so the canonical shape is `(ward, province)` with **no district**. (Column is `province`, not `city`, so schema matches the glossary.)
+- **Matcher (#6) is best-effort.** Legacy supplier data is still 3-tier; a ward like `Phường 9` is ambiguous under a province (existed in many old districts), so when the chain **exact → alternatives → fuzzy** can't resolve to exactly one row, the matcher returns **no match** (`ward_city_id` stays null) rather than guessing — the RealEstate is still mappable via coords (ADR-0001). The raw `district_or_city` is preserved on the source for humans/debugging but is **not** part of the canonical key.
 
 ### `real_estate_sources` — one row per live listing, upserted
 - `supplier:string`, `external_id:string` — **unique together** (upsert key)
+- `province_id:references` (FK → `provinces`) — **the crawl unit the row was fetched under** (canonical), stamped by the fetch job. This is the **sweep scope key**, NOT the parsed province string below. Index `(supplier, province_id)`.
+- `status:string` — `active` | `inactive`. Set `active` on upsert; bulk-set `inactive` by the fetch sweep for rows in `(supplier, province_id)` not re-seen this run (see §5). Drives the default query filter and the Normalize → `real_estates.status` propagation.
 - `raw_data:jsonb` — original payload
 - pre-parsed: `address:string` (raw full line), `province`, `district_or_city`, `ward`, `street`, `area:decimal` (m²), `price:bigint` (VND), `type:string`, `image_urls:string[]`, `source_url:string`, `latitude:decimal`, `longitude:decimal`
-- `last_seen_at:datetime`
-- On upsert, parsed fields + `raw_data` refreshed, `last_seen_at` bumped. The incoming-vs-stored `price` comparison is the **seam** for a future `price_observations(source_id, price, observed_at)` append-table — v1 just overwrites.
+  - ⚠️ the parsed `province` string is **raw supplier text** (drifts: `TPHCM` / `Tp Hồ Chí Minh` / legacy `(Quận X cũ)`); it feeds the Administrative path + WardCity matching but is **never** the sweep key — `province_id` is.
+- `last_seen_at:datetime` — bumped to run-start on each re-seen upsert.
+- On upsert, parsed fields + `raw_data` refreshed, `status='active'`, `last_seen_at` bumped. The incoming-vs-stored `price` comparison is the **seam** for a future `price_observations(source_id, price, observed_at)` append-table — v1 just overwrites.
 
 ### `real_estates` — normalized, deduplicated property
 - canonical location: **`latitude` / `longitude`** (identity; powers maps/stats; map link `https://www.google.com/maps?q={lat},{lng}` is *derived*, never stored — ADR-0001)
-- denormalized **Administrative path**: `province` / `district_or_city` / `ward` — flat search at any slot; province search includes sub-cities (a Thủ Đức listing is tagged `province = Hồ Chí Minh`, so "search HCM" returns Thủ Đức + its wards, no recursive tree)
+- `province_id:references` (FK → `provinces`) — **canonical** crawl province, propagated from `source.province_id`. The **province filter keys off this**, so "search HCM" returns **all** of HCM (incl. Thủ Đức + its wards) regardless of raw spelling drift. Always present (every source was fetched under a province).
+- denormalized **Administrative path** (raw display strings, copied from source): `province` / `district_or_city` / `ward`. Kept for human display; the **ward filter** keys off `ward_city_id` (canonical) and the **district filter** is a raw best-effort match (post-reform tier abolished, no canonical).
 - `area:decimal`, `price:bigint`, `type:string` (enum: condo/house/land/commercial/other), `image_urls`, `source_urls:string[]`
 - `ward_city_id:references` (nullable — best-effort match)
-- v1: **1:1 with `real_estate_sources`** (no cross-source merge yet). Future dedup keys off coords + area + price.
+- `status:string` — propagated from source by Normalize: a source flipped `inactive` (vanished from feed) flips its `RealEstate` `inactive`. The query API (§6) defaults to `status='active'`.
+- v1: **1:1 with `real_estate_sources`** (no cross-source merge yet). Future dedup keys off content (area + price + …), **never coords alone** — VN coords are approximate/decoy, collisions expected (CONTEXT.md).
 
 ## 4. Supplier abstraction (transport vs parsing)
 
@@ -81,24 +88,35 @@ One base class. The list-complete vs list+detail difference lives inside each su
 ## 5. Background jobs (master fan-out → per-(supplier × province) children)
 
 ```
-Fetch::MasterJob        cron @ :00 every 2h
+Fetch::MasterJob        cron every 6h
    reads Province.where(schedule_fetch: true) × enabled suppliers
    └─> Fetch::SupplierJob(supplier, province)        # child, isolated + retriable
-          each_listing up to fetch_page_depth → normalize → upsert real_estate_sources
+          1. each_listing up to fetch_page_depth → normalize ALL into memory  (fetch-then-store)
+             ↳ any HTTP/parse error here ⇒ raise, ZERO db writes, retry the unit
+          2. TRANSACTION:                            # atomic deactivate+upsert (no dark window)
+               UPDATE real_estate_sources SET status='inactive'
+                 WHERE supplier=? AND fetched_province=?   # scope = the crawl unit
+               upsert each Listing → status='active', last_seen_at=now
+             COMMIT
+          ⇒ re-seen = active; vanished-from-feed = inactive; transient outage = no change
 
-Normalize::MasterJob    cron @ :30 every 2h
-   └─> Normalize::SupplierJob(...)                    # build/refresh real_estates from sources
+Normalize::MasterJob    cron every 4h   (decoupled from fetch — idempotent, may process unchanged sources)
+   reads Province.where(schedule_fetch: true)
+   └─> Normalize::ProvinceJob(province)              # ALL suppliers' sources for this province
+          v1: copy each source → upsert real_estates (strictly per-source)
+          v2: merge sources at this province into deduplicated real_estates
 ```
-- Granularity **per `(supplier, province)`** — isolation (one unit failing doesn't abort the rest), parallelism across Sidekiq, independent retry.
+- **Fetch shards per `(supplier, province)`** (isolated outbound HTTP, independent retry); **Normalize shards per `province`** (a pure DB→DB transform that must one day see all suppliers together). The two shardings differ *deliberately*: v2 cross-source dedup becomes a change to `Normalize::ProvinceJob`'s loop body, not a re-architecture of the job topology.
 - Children **upsert** (idempotent); a **unique-job guard** prevents a slow cycle double-enqueuing the same unit.
-- Scheduler: sidekiq-cron (or equivalent).
+- Scheduler: sidekiq-cron. **Throttle: `sidekiq-throttled`, keyed per supplier** (Redis-backed, enforced across all worker processes — solves parallel children hammering one host). nhatot generous; **mogi `concurrency: 1` + slow rate** so its per-listing detail fetches serialize against the single host.
 
 ## 6. API (CRUD, JSON-only)
 
 - **JSON in / JSON only out.** Reject non-JSON `Content-Type`.
 - **Representers via `roar-rails`** for every response body.
 - **Params validated with `dry-validation`** contracts per endpoint (reject → 422 + error representer).
-- CRUD-convention resources: `real_estates` (index with filters: province/district/ward, type, price range, area range, bbox/coords; show), `provinces` (index; update `schedule_fetch`), `ward_cities`. Read-heavy; writes mostly via jobs.
+- CRUD-convention resources: `real_estates` (index; **show**), `provinces` (index; update `schedule_fetch`), `ward_cities`. Read-heavy; writes mostly via jobs.
+- **`real_estates` index filters** — **province → canonical `province_id`** (reliable, complete); **ward → `ward_city_id`** (canonical, best-effort; null-match rows don't participate); **district → raw `district_or_city`** best-effort; plus `type`, price range, area range, `bbox` (`lat/lng BETWEEN`), and **`status` (default `active`)**.
 - **OpenAPI (Swagger) maintained as a hand-written YAML** under `docs/openapi.yaml`, kept in sync with endpoints.
 
 ## 7. Testing (per user rules)
@@ -122,7 +140,7 @@ Normalize::MasterJob    cron @ :30 every 2h
 ## 10. License & stack
 
 - **BSD 3-Clause**, © 2026 Khoi Hoang (same as money-lover).
-- Ruby on Rails (API-only), PostgreSQL, Puma, Sidekiq, sidekiq-cron, roar-rails, dry-validation, FactoryBot, WebMock/VCR, rubocop, brakeman, bundler-audit. HTML parsing: Nokogiri.
+- Ruby on Rails (API-only), PostgreSQL, Puma, Sidekiq, sidekiq-cron, **sidekiq-throttled** (per-supplier rate/concurrency limit), roar-rails, dry-validation, FactoryBot, WebMock/VCR, rubocop, brakeman, bundler-audit. HTML parsing: Nokogiri.
 
 ## Open items deferred to v2 (designed-for, not built)
 batdongsan `BrowserSource`; cross-source dedup/merge in `real_estates`; `price_observations` history; reverse-geocode fallback for coords→WardCity matching.

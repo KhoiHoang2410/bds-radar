@@ -52,14 +52,15 @@ The six fields every Listing MUST yield before a Supplier may be implemented: **
 ### Address
 
 **Coordinates**:
-A `(latitude, longitude)` pair — the **canonical location identity** of a RealEstate. Universal across suppliers (nhatot lat/long fields; mogi map-iframe `q=`), reform-proof, and what powers maps/heatmaps/area-stats. The clickable map link is *derived* (`https://www.google.com/maps?q={lat},{lng}`), never stored.
+A `(latitude, longitude)` pair — the **canonical location identity** of a RealEstate for *display and spatial analysis* (maps/heatmaps/area-stats). Universal across suppliers (nhatot lat/long fields; mogi map-iframe `q=`) and reform-proof. The clickable map link is *derived* (`https://www.google.com/maps?q={lat},{lng}`), never stored.
+> ⚠️ **Coordinates are approximate, not a uniqueness key.** VN sellers pin an *approximate/decoy* location near the property, not on it, so **identical coords across listings are expected noise** — never collapse records on coords. Two listings (even cross-supplier) at the same point remain **distinct** RealEstate rows. A future content-based dedup (coords + area + price + …) may merge them; coords alone never will.
 
 **Administrative path**:
 The denormalized 3-slot location label on each RealEstate: **province** (top-level city/tỉnh) → **district_or_city** (district / sub-city; e.g. `Thành phố Thủ Đức`) → **ward**. Carried on every supplier record, so search is a flat filter at any slot. Searching a province returns everything beneath it (a Thủ Đức listing is tagged `province = Hồ Chí Minh`, so "search HCM" includes Thủ Đức and all its wards) — no recursive tree needed.
 
 **WardCity**:
-A reference table that **canonicalizes** the Administrative path and holds alternative spellings (e.g. `TPHCM` / `Tp Hồ Chí Minh` / `Sài Gòn` → one province). A **best-effort human-readable label**, NOT the location identity (that is Coordinates). A RealEstate may have Coordinates but no matched WardCity.
-_Avoid_: Location, region, area
+A reference table that **canonicalizes** the Administrative path to the **post-2025 2-tier shape `(ward, province)`** — district abolished — and holds alternative spellings (e.g. `TPHCM` / `Tp Hồ Chí Minh` / `Sài Gòn` → one province). Columns are `ward` + `province` (not `city` — the table pairs a ward with its top-tier province). A **best-effort human-readable label**, NOT the location identity (that is Coordinates). A RealEstate may have Coordinates but no matched WardCity: the matcher resolves messy 3-tier supplier text against `(ward, province)` via exact → alternatives → fuzzy, and on ambiguity (a legacy ward existing under many old districts) returns **null rather than guessing**.
+_Avoid_: Location, region, area; `city` (the slot is the province)
 
 > ⚠️ **Naming trap (nhatot):** in the nhatot payload the field literally named `area` is the administrative **district**, NOT the property size. Property size lives in `size`. In our domain, **Area always means square-meters**; administrative place is **Ward/City/District**, never "area".
 
