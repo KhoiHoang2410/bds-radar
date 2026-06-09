@@ -110,8 +110,79 @@ paths:
               schema:
                 $ref: "#/components/schemas/Errors"
 
+  /real_estates:
+    get:
+      summary: Query normalized properties (analytics API)
+      operationId: listRealEstates
+      parameters:
+        - { name: province_id, in: query, schema: { type: integer }, description: canonical province filter }
+        - { name: ward_city_id, in: query, schema: { type: integer } }
+        - { name: district_or_city, in: query, schema: { type: string }, description: raw best-effort }
+        - { name: type, in: query, schema: { type: string, enum: [condo, house, land, commercial, other] } }
+        - { name: min_price, in: query, schema: { type: integer } }
+        - { name: max_price, in: query, schema: { type: integer } }
+        - { name: min_area, in: query, schema: { type: number } }
+        - { name: max_area, in: query, schema: { type: number } }
+        - { name: bbox, in: query, schema: { type: string }, description: "sw_lat,sw_lng,ne_lat,ne_lng" }
+        - { name: status, in: query, schema: { type: string, enum: [active, inactive] }, description: default active }
+      responses:
+        "200":
+          description: Matching properties, newest first.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  real_estates:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/RealEstate"
+        "422":
+          description: Invalid filter.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Errors"
+  /real_estates/{id}:
+    get:
+      summary: Show one property (incl. derived map_url)
+      operationId: showRealEstate
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: The property.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RealEstate"
+        "404":
+          description: Not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Errors"
+
 components:
   schemas:
+    RealEstate:
+      type: object
+      properties:
+        id: { type: integer }
+        type: { type: string, enum: [condo, house, land, commercial, other] }
+        price: { type: integer, description: VND }
+        area: { type: number, description: square meters }
+        province_id: { type: integer, description: canonical }
+        province: { type: string, description: raw display string }
+        district_or_city: { type: string }
+        ward: { type: string }
+        ward_city_id: { type: integer, nullable: true }
+        latitude: { type: number }
+        longitude: { type: number }
+        image_urls: { type: array, items: { type: string } }
+        source_urls: { type: array, items: { type: string } }
+        status: { type: string, enum: [active, inactive] }
+        map_url: { type: string, description: derived from coords, never stored }
     Province:
       type: object
       properties:
