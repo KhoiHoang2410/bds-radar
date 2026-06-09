@@ -53,3 +53,31 @@ PROVINCES.each do |name, alternatives|
 end
 
 puts "Seeded #{Province.count} provinces (#{Province.scheduled.count} scheduled: #{Province.scheduled.pluck(:name).join(', ')})"
+
+# WardCity — canonical (ward, province) labels for the matcher (#6).
+# ⚠️ STARTER SET, not a complete gazetteer: the post-2025 reform renamed/merged
+# wards mid-migration and suppliers still emit legacy ward strings, so ward_city_id
+# is best-effort/nullable by design (coords are identity — ADR-0001). This seeds a
+# representative sample for the enabled provinces; the full ward list is a separate
+# data-load task. `[ward, province, ward_alternatives]`.
+WARD_CITIES = [
+  [ "Phường Bến Nghé", "Hồ Chí Minh", [ "Ben Nghe" ] ],
+  [ "Phường Bến Thành", "Hồ Chí Minh", [ "Ben Thanh" ] ],
+  [ "Phường Tân Định", "Hồ Chí Minh", [ "Tan Dinh" ] ],
+  [ "Phường Thảo Điền", "Hồ Chí Minh", [ "Thao Dien" ] ],
+  [ "Phường 1", "Hồ Chí Minh", [] ],
+  [ "Phường 4", "Hồ Chí Minh", [] ],
+  [ "Phường Hàng Bạc", "Hà Nội", [ "Hang Bac" ] ],
+  [ "Phường Cửa Nam", "Hà Nội", [ "Cua Nam" ] ],
+  [ "Phường Dịch Vọng", "Hà Nội", [ "Dich Vong" ] ],
+  [ "Phường Lộc Thọ", "Khánh Hòa", [ "Loc Tho" ] ],
+  [ "Phường Vĩnh Hải", "Khánh Hòa", [ "Vinh Hai" ] ]
+].freeze
+
+WARD_CITIES.each do |ward, province, ward_alternatives|
+  wc = WardCity.find_or_initialize_by(ward: ward, province: province)
+  wc.ward_alternatives = ward_alternatives
+  wc.save!
+end
+
+puts "Seeded #{WardCity.count} ward_cities (starter set)"
