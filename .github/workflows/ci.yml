@@ -75,7 +75,7 @@ jobs:
       - name: Prepare parallel test databases
         run: |
           bundle exec rake parallel:create
-          bundle exec rake parallel:prepare
+          bundle exec rake parallel:load_schema
       - name: Unit + integration specs (parallel)
         run: bundle exec rake parallel:spec
 
