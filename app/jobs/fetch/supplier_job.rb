@@ -7,7 +7,7 @@ module Fetch
   class SupplierJob < ApplicationJob
     queue_as :default
 
-    SUPPLIERS = { "nhatot" => Suppliers::Nhatot }.freeze
+    SUPPLIERS = { "nhatot" => Suppliers::Nhatot, "mogi" => Suppliers::Mogi }.freeze
 
     def perform(supplier_key, province_id)
       supplier = SUPPLIERS.fetch(supplier_key).new
