@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_06_09_175406) do
+ActiveRecord::Schema[8.0].define(version: 2026_06_09_180825) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -50,6 +50,17 @@ ActiveRecord::Schema[8.0].define(version: 2026_06_09_175406) do
     t.index ["status"], name: "index_real_estate_sources_on_status"
     t.index ["supplier", "external_id"], name: "index_real_estate_sources_on_supplier_and_external_id", unique: true
     t.index ["supplier", "province_id"], name: "index_real_estate_sources_on_supplier_and_province_id"
+  end
+
+  create_table "ward_cities", force: :cascade do |t|
+    t.string "ward", null: false
+    t.string "province", null: false
+    t.string "ward_alternatives", default: [], null: false, array: true
+    t.string "province_alternatives", default: [], null: false, array: true
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["province"], name: "index_ward_cities_on_province"
+    t.index ["ward", "province"], name: "index_ward_cities_on_ward_and_province", unique: true
   end
 
   add_foreign_key "real_estate_sources", "provinces"
