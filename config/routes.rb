@@ -7,4 +7,5 @@ Rails.application.routes.draw do
 
   resources :provinces, only: [:index, :update]
   resources :real_estate_sources, only: [:index]
+  resources :real_estates, only: [:index, :show]
 end
