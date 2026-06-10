@@ -1,0 +1,101 @@
+openapi: 3.0.3
+info:
+  title: BDS Radar API
+  version: "1.0.0"
+  description: >
+    JSON-only API over normalized Vietnamese real-estate listings.
+    Every request body must be application/json; every response is JSON.
+servers:
+  - url: http://localhost:3000
+
+paths:
+  /provinces:
+    get:
+      summary: List provinces (crawl-control surface)
+      operationId: listProvinces
+      responses:
+        "200":
+          description: All provinces, ordered by name.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  provinces:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Province"
+  /provinces/{id}:
+    patch:
+      summary: Toggle schedule_fetch / adjust fetch_page_depth
+      operationId: updateProvince
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                schedule_fetch:
+                  type: boolean
+                fetch_page_depth:
+                  type: integer
+                  minimum: 1
+      responses:
+        "200":
+          description: Updated province.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Province"
+        "404":
+          description: No such province.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Errors"
+        "415":
+          description: Request body was not application/json.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Errors"
+        "422":
+          description: Validation failed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Errors"
+
+components:
+  schemas:
+    Province:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        alternatives:
+          type: array
+          items:
+            type: string
+        schedule_fetch:
+          type: boolean
+        fetch_page_depth:
+          type: integer
+    Errors:
+      type: object
+      properties:
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
