@@ -4,8 +4,29 @@ module Fetch
   #      raises BEFORE any DB write, so a transient outage mutates nothing — retry.
   #   2. One transaction: deactivate the whole (supplier, province_id) scope, then
   #      upsert every fetched listing active. Re-seen ⇒ active; vanished ⇒ inactive.
-  class SupplierJob < ApplicationJob
-    queue_as :default
+  #
+  # A native Sidekiq worker (not ActiveJob) so sidekiq-throttled can govern it:
+  #   - concurrency 1 per (supplier, province_id) = the unique-job guard (no two of the
+  #     same unit run at once, across all worker processes);
+  #   - a per-supplier rate threshold = politeness to each host (mogi tight; nhatot
+  #     tolerant). Limits are procs of the job args.
+  class SupplierJob
+    include Sidekiq::Job
+    include Sidekiq::Throttled::Job
+
+    sidekiq_options queue: "default", retry: 5
+
+    sidekiq_throttle(
+      concurrency: {
+        limit: 1,
+        key_suffix: ->(supplier, province_id) { "#{supplier}:#{province_id}" }
+      },
+      threshold: {
+        limit: ->(supplier, _province_id) { supplier == "mogi" ? 1 : 20 },
+        period: 60,
+        key_suffix: ->(supplier, _province_id) { supplier }
+      }
+    )
 
     SUPPLIERS = { "nhatot" => Suppliers::Nhatot, "mogi" => Suppliers::Mogi }.freeze
 
