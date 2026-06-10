@@ -43,5 +43,10 @@ module BdsRadar
 
     # Background work runs on Sidekiq (fetch fan-out, normalization).
     config.active_job.queue_adapter = :sidekiq
+
+    # Session/cookie middleware so the mounted Sidekiq::Web dashboard works in this
+    # API-only app (it needs a session for CSRF on its action buttons).
+    config.middleware.use ActionDispatch::Cookies
+    config.middleware.use ActionDispatch::Session::CookieStore, key: "_bds_radar_session"
   end
 end
