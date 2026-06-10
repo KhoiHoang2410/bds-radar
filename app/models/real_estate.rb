@@ -15,6 +15,16 @@ class RealEstate < ApplicationRecord
   scope :active, -> { where(status: "active") }
   scope :inactive, -> { where(status: "inactive") }
 
+  # Ransack allowlist (filtering): province → province_id, ward → ward_city_id,
+  # district raw, type/status, price/area ranges, and lat/lng (bbox = *_gteq/_lteq).
+  def self.ransackable_attributes(_auth = nil)
+    %w[province_id ward_city_id district_or_city type status price area latitude longitude]
+  end
+
+  def self.ransackable_associations(_auth = nil)
+    []
+  end
+
   # Derived from coords, never stored (ADR-0001).
   def map_url
     return nil if latitude.blank? || longitude.blank?

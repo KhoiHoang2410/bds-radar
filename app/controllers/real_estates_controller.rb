@@ -1,13 +1,14 @@
 class RealEstatesController < ApplicationController
-  # GET /real_estates — the consumable analytics API. Filters: province (canonical
-  # province_id), ward (ward_city_id), district (raw), type, price/area range, bbox,
-  # status (default active).
+  # GET /real_estates — the analytics API. Filter via ransack q[...] predicates:
+  #   q[province_id_eq], q[ward_city_id_eq], q[district_or_city_cont], q[type_eq],
+  #   q[price_gteq]/q[price_lteq], q[area_gteq]/q[area_lteq],
+  #   bbox = q[latitude_gteq]/q[latitude_lteq] + q[longitude_gteq]/q[longitude_lteq].
+  # Defaults to active rows unless q[status_eq] is given. Paginated via pagy (25/page).
   def index
-    result = RealEstateIndexContract.new.call(filter_params)
-    return render_errors(result.errors.to_h) unless result.success?
-
-    real_estates = RealEstateQuery.call(result.to_h).to_a
-    render_representer(RealEstatesRepresenter.new(RealEstateCollection.new(real_estates: real_estates)))
+    scope = base_scope.ransack(params[:q]).result.order(created_at: :desc)
+    pagy, records = pagy(scope)
+    collection = RealEstateCollection.new(real_estates: records, pagination: pagination_for(pagy))
+    render_representer(RealEstatesRepresenter.new(collection))
   end
 
   # GET /real_estates/:id
@@ -17,10 +18,8 @@ class RealEstatesController < ApplicationController
 
   private
 
-  def filter_params
-    params.permit(
-      :province_id, :ward_city_id, :district_or_city, :type, :status,
-      :min_price, :max_price, :min_area, :max_area, :bbox
-    ).to_h.symbolize_keys
+  # Default to active rows unless the caller explicitly filters on status.
+  def base_scope
+    params.dig(:q, :status_eq).present? ? RealEstate.all : RealEstate.active
   end
 end

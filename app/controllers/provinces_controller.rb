@@ -1,7 +1,8 @@
 class ProvincesController < ApplicationController
-  # GET /provinces — the crawl-control surface, ordered by name.
+  # GET /provinces — the crawl-control surface, ordered by name (pagy, 25/page).
   def index
-    collection = ProvinceCollection.new(provinces: Province.order(:name).to_a)
+    pagy, records = pagy(Province.order(:name))
+    collection = ProvinceCollection.new(provinces: records, pagination: pagination_for(pagy))
     render_representer(ProvincesRepresenter.new(collection))
   end
 

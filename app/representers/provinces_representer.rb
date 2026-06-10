@@ -4,4 +4,5 @@ class ProvincesRepresenter < Roar::Decorator
   include Roar::JSON
 
   collection :provinces, decorator: ProvinceRepresenter
+  property :pagination, decorator: PaginationRepresenter
 end
