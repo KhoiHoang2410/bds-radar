@@ -113,10 +113,12 @@ Normalize::MasterJob    cron every 4h   (decoupled from fetch — idempotent, ma
 ## 6. API (CRUD, JSON-only)
 
 - **JSON in / JSON only out.** Reject non-JSON `Content-Type`.
-- **Representers via `roar-rails`** for every response body.
-- **Params validated with `dry-validation`** contracts per endpoint (reject → 422 + error representer).
+- **Representers via `roar`** for every response body.
+- **Write endpoints validate params with `dry-validation`** contracts (reject → 422 + error representer).
+- **Index endpoints: filter with `ransack`, paginate with `pagy` — never hand-rolled.**
+  - Filtering: `?q[<attr>_<predicate>]=...`, allowlisted per model via `ransackable_attributes`. **province → `q[province_id_eq]`** (canonical, complete); **ward → `q[ward_city_id_eq]`**; **district → `q[district_or_city_cont]`** (raw best-effort); plus `q[type_eq]`, `q[price_gteq]`/`q[price_lteq]`, `q[area_gteq]`/`q[area_lteq]`, and **bbox = `q[latitude_gteq]`/`_lteq` + `q[longitude_gteq]`/`_lteq`**. `real_estates` defaults to `status=active` unless `q[status_eq]` is given. Unknown predicates are ignored (no 422).
+  - Pagination: **default page 1, 25 items/page**; `?page=`, `?per_page=` (capped 100 — over-cap clamps, out-of-range pages return empty). Every index response carries a `pagination` object (`page`, `per_page`, `total_count`, `total_pages`).
 - CRUD-convention resources: `real_estates` (index; **show**), `provinces` (index; update `schedule_fetch`), `ward_cities`. Read-heavy; writes mostly via jobs.
-- **`real_estates` index filters** — **province → canonical `province_id`** (reliable, complete); **ward → `ward_city_id`** (canonical, best-effort; null-match rows don't participate); **district → raw `district_or_city`** best-effort; plus `type`, price range, area range, `bbox` (`lat/lng BETWEEN`), and **`status` (default `active`)**.
 - **OpenAPI (Swagger) maintained as a hand-written YAML** under `docs/openapi.yaml`, kept in sync with endpoints.
 
 ## 7. Testing (per user rules)

@@ -1,4 +1,6 @@
 class ApplicationController < ActionController::API
+  include Pagy::Backend
+
   rescue_from ActiveRecord::RecordNotFound, with: :render_not_found
 
   before_action :require_json_content_type, if: :request_has_body?
@@ -26,5 +28,10 @@ class ApplicationController < ActionController::API
 
   def render_not_found
     render_errors({ base: [ "not found" ] }, status: :not_found)
+  end
+
+  # Map a Pagy object to our serializable pagination value object.
+  def pagination_for(pagy)
+    Pagination.new(page: pagy.page, per_page: pagy.limit, total_count: pagy.count, total_pages: pagy.pages)
   end
 end

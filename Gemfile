@@ -23,6 +23,10 @@ gem "roar", "~> 1.2"
 gem "multi_json"
 gem "dry-validation", "~> 1.10"
 
+# Index filtering + pagination (don't hand-roll): ransack q[...] predicates, pagy paging.
+gem "ransack", "~> 4.2"
+gem "pagy", "~> 9.3"
+
 # HTTP transport + HTML parsing (suppliers)
 gem "faraday", "~> 2.12"
 gem "faraday-retry", "~> 2.2"

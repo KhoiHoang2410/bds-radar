@@ -14,7 +14,8 @@ Rails (API-only), PostgreSQL, Puma, Sidekiq + sidekiq-cron, roar-rails (represen
 
 ## Conventions
 
-- **JSON in / JSON only out.** Every response body goes through a roar representer; every endpoint validates params with a dry-validation contract.
+- **JSON in / JSON only out.** Every response body goes through a roar representer; **write** endpoints validate params with a dry-validation contract.
+- **Index endpoints: filter with ransack, paginate with pagy — don't hand-roll either.** Filtering is `?q[<attr>_<predicate>]=...` (allowlisted via each model's `ransackable_attributes`); a bbox is `q[latitude_gteq]/_lteq` + `q[longitude_gteq]/_lteq`. Pagination defaults to **page 1, 25 items/page** (`?page=`, `?per_page=`, capped at 100; over-cap clamps, out-of-range pages return empty — no 422). Every index response includes a `pagination` object (page, per_page, total_count, total_pages).
 - **CRUD-convention** resources. OpenAPI (Swagger) maintained by hand as `docs/openapi.yaml`, kept in sync.
 - **Suppliers:** `Suppliers::Base` is transport only (HTTP client, retry, status handling, throttle) and returns the raw body — parsing lives in each subclass (nhatot=JSON, mogi=HTML). Per-supplier province→region-code maps and URIs/headers are hard-coded in the subclass.
 - **Jobs:** a master job fans out per-`(supplier × province)` children; children upsert idempotently behind a unique-job guard.
