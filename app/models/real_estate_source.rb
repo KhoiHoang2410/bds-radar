@@ -6,6 +6,7 @@ class RealEstateSource < ApplicationRecord
   # Canonical crawl unit the row was fetched under (sweep/scope key). Named
   # `crawl_province` so it doesn't collide with the raw parsed `province` string.
   belongs_to :crawl_province, class_name: "Province", foreign_key: :province_id, inverse_of: :real_estate_sources
+  has_one :real_estate, dependent: :destroy
 
   validates :supplier, presence: true
   validates :external_id, presence: true
