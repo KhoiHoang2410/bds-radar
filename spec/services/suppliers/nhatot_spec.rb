@@ -36,6 +36,18 @@ RSpec.describe Suppliers::Nhatot do
     it "falls back to type=other for an unknown category" do
       expect(supplier.normalize(raw.merge("category" => 9999)).type).to eq("other")
     end
+
+    it "promotes rooms/toilets/subject and parses list_time (epoch ms) into posted_at" do
+      expect(listing.bedrooms).to eq(raw["rooms"])
+      expect(listing.bathrooms).to eq(raw["toilets"])
+      expect(listing.title).to eq(raw["subject"])
+      expect(listing.posted_at).to eq(Time.zone.at(raw["list_time"] / 1000))
+    end
+
+    it "leaves the detail columns nil when the raw ad omits them" do
+      sparse = supplier.normalize(raw.except("rooms", "toilets", "list_time", "subject"))
+      expect([ sparse.bedrooms, sparse.bathrooms, sparse.posted_at, sparse.title ]).to all(be_nil)
+    end
   end
 
   describe "#each_listing" do

@@ -30,5 +30,27 @@ RSpec.describe "RealEstateSources", type: :request do
       sources = response.parsed_body.fetch("real_estate_sources")
       expect(sources.map { |s| s["id"] }).to contain_exactly(inactive.id)
     end
+
+    it "exposes the promoted detail columns in the representer" do
+      create(:real_estate_source, bedrooms: 3, bathrooms: 2, posted_at: Time.zone.local(2026, 6, 8), title: "Bán nhà hẻm")
+
+      get "/real_estate_sources"
+
+      expect(response.parsed_body.fetch("real_estate_sources").first).to include(
+        "bedrooms" => 3,
+        "bathrooms" => 2,
+        "title" => "Bán nhà hẻm"
+      )
+    end
+
+    it "filters on bedrooms via ransack" do
+      create(:real_estate_source, bedrooms: 1)
+      match = create(:real_estate_source, bedrooms: 3)
+
+      get "/real_estate_sources", params: { q: { bedrooms_gteq: 2 } }
+
+      sources = response.parsed_body.fetch("real_estate_sources")
+      expect(sources.map { |s| s["id"] }).to contain_exactly(match.id)
+    end
   end
 end

@@ -32,6 +32,34 @@ RSpec.describe Suppliers::Mogi do
       expect(raw["images"]).to all(include("cloud.mogi.vn/images"))
       expect(raw["images"]).to all(satisfy { |u| !u.include?("dmca") })
     end
+
+    it "reads the title (h1) and post date (Ngày đăng, DD/MM/YYYY)" do
+      expect(raw["title"]).to include("Hóc Môn")
+      expect(raw["posted_at"]).to eq(Time.zone.local(2026, 6, 8))
+    end
+
+    it "leaves bedrooms/bathrooms nil when the page has no such info-attr rows (land)" do
+      expect(raw["bedrooms"]).to be_nil
+      expect(raw["bathrooms"]).to be_nil
+    end
+  end
+
+  describe "#parse_detail bedroom/bathroom info-attr rows" do
+    let(:html) do
+      <<~HTML
+        <html><body>
+          <h1>Bán nhà 3 phòng ngủ</h1>
+          <div class="info-attr clearfix"><span>Phòng ngủ</span><span>3</span></div>
+          <div class="info-attr clearfix"><span>Phòng tắm</span><span>2 phòng</span></div>
+        </body></html>
+      HTML
+    end
+
+    it "extracts the leading integer from the matching rows" do
+      raw = supplier.parse_detail("https://mogi.vn/q/mua-nha-id9", html)
+      expect(raw["bedrooms"]).to eq(3)
+      expect(raw["bathrooms"]).to eq(2)
+    end
   end
 
   describe "#type_from_url (structured, AI only as fallback)" do

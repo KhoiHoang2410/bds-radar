@@ -45,11 +45,20 @@ module Suppliers
         image_urls: Array(raw["images"]),
         latitude: raw["latitude"],
         longitude: raw["longitude"],
+        bedrooms: raw["rooms"],
+        bathrooms: raw["toilets"],
+        posted_at: post_time(raw["list_time"]),
+        title: raw["subject"],
         raw_data: raw
       )
     end
 
     private
+
+    # nhatot's `list_time` is epoch **milliseconds**.
+    def post_time(list_time)
+      Time.zone.at(list_time / 1000) if list_time
+    end
 
     def build_address(raw)
       [ raw["street_name"], raw["ward_name"], raw["area_name"], raw["region_name"] ].compact_blank.join(", ")
