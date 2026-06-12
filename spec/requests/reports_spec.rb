@@ -28,4 +28,37 @@ RSpec.describe "Reports", type: :request do
       expect(response).to have_http_status(:not_found)
     end
   end
+
+  describe "GET /provinces/:province_id/report/charts" do
+    let(:hcm) { create(:province, name: "Hồ Chí Minh") }
+
+    # Layer-boundary mock: the controller delegates rendering to the chart service
+    # (a Python subprocess); assert it's invoked and its bytes are streamed.
+    it "streams the chart PDF produced by the chart service" do
+      create(:real_estate, crawl_province: hcm)
+      allow(Reports::ProvinceReportChartPdf).to receive(:available?).and_return(true)
+      allow(Reports::ProvinceReportChartPdf).to receive(:call).and_return("%PDF-fake")
+
+      get "/provinces/#{hcm.id}/report/charts"
+
+      expect(response).to have_http_status(:ok)
+      expect(response.media_type).to eq("application/pdf")
+      expect(response.body).to eq("%PDF-fake")
+      expect(Reports::ProvinceReportChartPdf).to have_received(:call).once
+    end
+
+    it "503s when the chart runtime is unavailable" do
+      allow(Reports::ProvinceReportChartPdf).to receive(:available?).and_return(false)
+
+      get "/provinces/#{hcm.id}/report/charts"
+
+      expect(response).to have_http_status(:service_unavailable)
+    end
+
+    it "404s for an unknown province" do
+      allow(Reports::ProvinceReportChartPdf).to receive(:available?).and_return(true)
+      get "/provinces/0/report/charts"
+      expect(response).to have_http_status(:not_found)
+    end
+  end
 end

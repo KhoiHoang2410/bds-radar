@@ -176,6 +176,35 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Errors"
+  /provinces/{province_id}/report/charts:
+    get:
+      summary: Province analytics report as matplotlib charts (PDF)
+      operationId: showProvinceReportCharts
+      description: >
+        Same figures as the /report endpoint, rendered as charts by a Python
+        (matplotlib) subprocess: count by type, avg price by type, condo price
+        per bedroom, and the price-bucket distribution. Returns 503 if the chart
+        runtime isn't provisioned (see script/charts/README.md).
+      parameters:
+        - { name: province_id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: The chart report as a PDF document.
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+        "404":
+          description: Province not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Errors"
+        "503":
+          description: Chart runtime unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Errors"
 
 components:
   parameters:

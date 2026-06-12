@@ -30,3 +30,7 @@
 
 # Ignore master key for decrypting credentials and more.
 /config/master.key
+
+# Python chart-rendering virtualenv (provision via script/charts/README.md).
+/script/charts/.venv/
+/script/charts/__pycache__/
