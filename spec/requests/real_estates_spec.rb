@@ -64,6 +64,26 @@ RSpec.describe "RealEstates", type: :request do
       )
     end
 
+    it "exposes the promoted listing detail columns" do
+      re = create(:real_estate, bedrooms: 3, bathrooms: 2, title: "Bán căn hộ 3PN")
+
+      get "/real_estates/#{re.id}"
+
+      expect(response.parsed_body).to include(
+        "bedrooms" => 3, "bathrooms" => 2, "title" => "Bán căn hộ 3PN"
+      )
+      expect(response.parsed_body).to have_key("posted_at")
+    end
+
+    it "filters by bedrooms via ransack" do
+      two = create(:real_estate, bedrooms: 2)
+      create(:real_estate, bedrooms: 4)
+
+      get "/real_estates", params: { q: { bedrooms_eq: 2 } }
+
+      expect(response.parsed_body.fetch("real_estates").map { |r| r["id"] }).to contain_exactly(two.id)
+    end
+
     it "returns 404 for an unknown id" do
       get "/real_estates/0"
       expect(response).to have_http_status(:not_found)

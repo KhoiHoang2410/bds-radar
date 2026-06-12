@@ -28,6 +28,10 @@ module Normalize
         image_urls: source.image_urls,
         source_urls: Array(source.source_url).compact_blank,
         status: source.status,                            # inactive source ⇒ inactive RE
+        bedrooms: source.bedrooms,                        # promoted listing details (#21)
+        bathrooms: source.bathrooms,
+        posted_at: source.posted_at,
+        title: source.title,
         ward_city_id: WardCityMatcher.call(ward: source.ward, province: province.name)
       )
       real_estate.save!

@@ -27,6 +27,10 @@ gem "dry-validation", "~> 1.10"
 gem "ransack", "~> 4.2"
 gem "pagy", "~> 9.3"
 
+# PDF reports (pure-Ruby, no system deps): province analytics export.
+gem "prawn", "~> 2.5"
+gem "prawn-table", "~> 0.2"
+
 # HTTP transport + HTML parsing (suppliers)
 gem "faraday", "~> 2.12"
 gem "faraday-retry", "~> 2.2"
