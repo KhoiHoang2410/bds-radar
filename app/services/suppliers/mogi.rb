@@ -38,6 +38,10 @@ module Suppliers
         image_urls: raw["images"],
         latitude: raw["latitude"],
         longitude: raw["longitude"],
+        bedrooms: raw["bedrooms"],
+        bathrooms: raw["bathrooms"],
+        posted_at: raw["posted_at"],
+        title: raw["title"],
         raw_data: raw
       )
     end
@@ -60,6 +64,8 @@ module Suppliers
       ward, district, city, street = split_address(address)
       lat, lng = coordinates(html)
 
+      attrs = info_attrs(doc)
+
       {
         "url" => url,
         "external_id" => url[/-id(\d+)/, 1],
@@ -73,11 +79,42 @@ module Suppliers
         "street" => street,
         "latitude" => lat,
         "longitude" => lng,
-        "images" => image_urls(doc)
+        "images" => image_urls(doc),
+        "bedrooms" => count_attr(attrs, "Phòng ngủ"),
+        "bathrooms" => count_attr(attrs, "Phòng tắm"),
+        "posted_at" => post_time(attrs["Ngày đăng"]),
+        "title" => title_from(doc)
       }
     end
 
     private
+
+    # Each `.info-attr` is "<span>label</span><span>value</span>"; build a label→value map.
+    def info_attrs(doc)
+      doc.css(".info-attr").each_with_object({}) do |node, map|
+        spans = node.css("span")
+        next if spans.size < 2
+
+        label = spans[0].text.gsub(/\s+/, " ").strip
+        map[label] = spans[1].text.gsub(/\s+/, " ").strip
+      end
+    end
+
+    def count_attr(attrs, label)
+      attrs[label]&.then { |value| value[/\d+/]&.to_i }
+    end
+
+    # "Ngày đăng" reads "DD/MM/YYYY".
+    def post_time(value)
+      return unless value && value =~ %r{(\d{2})/(\d{2})/(\d{4})}
+
+      Time.zone.local(::Regexp.last_match(3).to_i, ::Regexp.last_match(2).to_i, ::Regexp.last_match(1).to_i)
+    end
+
+    # The h1 is the clean ad title; the <title> tag carries a "- Mogi.vn" suffix.
+    def title_from(doc)
+      (doc.css("h1").first&.text || doc.css("title").first&.text)&.gsub(/\s+/, " ")&.strip.presence
+    end
 
     def list_url(slug, page)
       url = "#{SITE}/#{slug}/mua-nha-dat"

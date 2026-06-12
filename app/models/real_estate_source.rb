@@ -17,7 +17,8 @@ class RealEstateSource < ApplicationRecord
   scope :inactive, -> { where(status: "inactive") }
 
   def self.ransackable_attributes(_auth = nil)
-    %w[supplier province_id status type price area ward district_or_city latitude longitude external_id]
+    %w[supplier province_id status type price area ward district_or_city latitude longitude external_id
+       bedrooms bathrooms posted_at title]
   end
 
   def self.ransackable_associations(_auth = nil)

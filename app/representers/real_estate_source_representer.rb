@@ -17,5 +17,9 @@ class RealEstateSourceRepresenter < Roar::Decorator
   property :image_urls
   property :latitude, getter: ->(*) { latitude&.to_f }
   property :longitude, getter: ->(*) { longitude&.to_f }
+  property :bedrooms
+  property :bathrooms
+  property :posted_at
+  property :title
   property :last_seen_at
 end

@@ -84,7 +84,8 @@ paths:
       operationId: listRealEstateSources
       description: >
         Filter via ransack q[...] predicates, e.g. q[supplier_eq]=mogi,
-        q[status_eq]=active, q[price_gteq]=1000000000. Paginated (25/page).
+        q[status_eq]=active, q[price_gteq]=1000000000, q[bedrooms_gteq]=2,
+        q[bathrooms_eq]=1. Paginated (25/page).
       parameters:
         - $ref: "#/components/parameters/Q"
         - $ref: "#/components/parameters/Page"
@@ -235,6 +236,10 @@ components:
           items: { type: string }
         latitude: { type: number }
         longitude: { type: number }
+        bedrooms: { type: integer, nullable: true, description: nhatot rooms / mogi "Phòng ngủ" }
+        bathrooms: { type: integer, nullable: true, description: nhatot toilets / mogi "Phòng tắm" }
+        posted_at: { type: string, format: date-time, nullable: true, description: listing post date }
+        title: { type: string, nullable: true, description: ad title (nhatot subject / mogi h1) }
         last_seen_at: { type: string, format: date-time }
     Errors:
       type: object

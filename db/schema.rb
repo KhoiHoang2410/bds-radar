@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_06_09_181304) do
+ActiveRecord::Schema[8.0].define(version: 2026_06_11_000002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -46,6 +46,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_06_09_181304) do
     t.datetime "last_seen_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.integer "bedrooms"
+    t.integer "bathrooms"
+    t.datetime "posted_at"
+    t.string "title"
     t.index ["province_id"], name: "index_real_estate_sources_on_province_id"
     t.index ["status"], name: "index_real_estate_sources_on_status"
     t.index ["supplier", "external_id"], name: "index_real_estate_sources_on_supplier_and_external_id", unique: true
