@@ -24,7 +24,10 @@ Rails.application.routes.draw do
   # Sidekiq dashboard (queues, retries, scheduled, + sidekiq-cron's Cron tab).
   mount Sidekiq::Web => "/sidekiq"
 
-  resources :provinces, only: [ :index, :update ]
+  resources :provinces, only: [ :index, :update ] do
+    # PDF analytics export for the province's real-estate listings.
+    resource :report, only: [ :show ], controller: :reports
+  end
   resources :real_estate_sources, only: [ :index ]
   resources :real_estates, only: [ :index, :show ]
 end

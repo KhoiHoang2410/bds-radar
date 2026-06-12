@@ -113,7 +113,8 @@ paths:
         Filter via ransack q[...] predicates. Common ones:
         q[province_id_eq] (canonical province), q[ward_city_id_eq],
         q[district_or_city_cont], q[type_eq], q[price_gteq]/q[price_lteq],
-        q[area_gteq]/q[area_lteq], and a bbox via
+        q[area_gteq]/q[area_lteq], q[bedrooms_gteq], q[bathrooms_eq],
+        q[posted_at_gteq], and a bbox via
         q[latitude_gteq]/q[latitude_lteq] + q[longitude_gteq]/q[longitude_lteq].
         Defaults to status=active unless q[status_eq] is given. Paginated (25/page).
       parameters:
@@ -149,6 +150,28 @@ paths:
                 $ref: "#/components/schemas/RealEstate"
         "404":
           description: Not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Errors"
+  /provinces/{province_id}/report:
+    get:
+      summary: Province real-estate analytics report (PDF)
+      operationId: showProvinceReport
+      description: >
+        Renders a PDF over the province's active listings: count/avg-price/avg-area
+        by type, condo & land average price per bedroom, land price per m², and a
+        listing count distribution across price buckets.
+      parameters:
+        - { name: province_id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: The report as a PDF document.
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+        "404":
+          description: Province not found.
           content:
             application/json:
               schema:
@@ -199,6 +222,10 @@ components:
         image_urls: { type: array, items: { type: string } }
         source_urls: { type: array, items: { type: string } }
         status: { type: string, enum: [active, inactive] }
+        bedrooms: { type: integer, nullable: true, description: promoted from source (#21) }
+        bathrooms: { type: integer, nullable: true }
+        posted_at: { type: string, format: date-time, nullable: true, description: listing post date }
+        title: { type: string, nullable: true, description: ad title }
         map_url: { type: string, description: derived from coords, never stored }
     Province:
       type: object

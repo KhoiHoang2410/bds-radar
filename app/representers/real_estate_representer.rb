@@ -15,5 +15,9 @@ class RealEstateRepresenter < Roar::Decorator
   property :image_urls
   property :source_urls
   property :status
+  property :bedrooms
+  property :bathrooms
+  property :posted_at
+  property :title
   property :map_url # derived from coords, never stored (ADR-0001)
 end

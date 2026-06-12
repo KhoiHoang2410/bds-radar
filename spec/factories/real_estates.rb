@@ -14,6 +14,10 @@ FactoryBot.define do
     longitude { 106.65734 }
     image_urls { [] }
     source_urls { [ "https://www.nhatot.com/1.htm" ] }
+    bedrooms { 2 }
+    bathrooms { 2 }
+    posted_at { Time.current }
+    title { "Bán nhà Quận Tân Bình" }
 
     trait :inactive do
       status { "inactive" }

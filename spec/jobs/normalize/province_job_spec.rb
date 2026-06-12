@@ -25,6 +25,17 @@ RSpec.describe Normalize::ProvinceJob do
     expect(re.source_urls).to eq([ "https://www.nhatot.com/9.htm" ])
   end
 
+  it "copies the promoted listing detail columns (bedrooms/bathrooms/posted_at/title)" do
+    posted = Time.zone.local(2026, 5, 1, 9, 0)
+    source = create(:real_estate_source, crawl_province: hcm, bedrooms: 3, bathrooms: 2,
+                                         posted_at: posted, title: "Bán căn hộ 3PN")
+
+    run
+
+    re = RealEstate.find_by(real_estate_source_id: source.id)
+    expect(re).to have_attributes(bedrooms: 3, bathrooms: 2, posted_at: posted, title: "Bán căn hộ 3PN")
+  end
+
   it "resolves ward_city_id when the matcher finds one, leaves it nil otherwise" do
     wc = create(:ward_city, ward: "Phường Bến Nghé", province: "Hồ Chí Minh")
     matched = create(:real_estate_source, crawl_province: hcm, ward: "Phường Bến Nghé")
