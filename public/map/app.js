@@ -333,10 +333,16 @@
       .replace(/'/g, "&#39;");
   }
 
-  // price is stored in VND; show it as triệu (millions) for readability.
+  // price is stored in VND; show it in tỉ (billions) — the unit VN listings use
+  // for whole-property prices. Sub-billion prices fall back to triệu so we don't
+  // render awkward values like "0,5 tỉ".
   function formatPrice(price) {
     if (price == null) return "—";
-    return (price / 1e6).toLocaleString("vi-VN", { maximumFractionDigits: 1 }) +
+    if (price >= 1e9) {
+      return (price / 1e9).toLocaleString("vi-VN", { maximumFractionDigits: 2 }) +
+        " tỉ";
+    }
+    return (price / 1e6).toLocaleString("vi-VN", { maximumFractionDigits: 0 }) +
       " triệu";
   }
 
