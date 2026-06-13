@@ -94,27 +94,16 @@ module Reports
       HTML
     end
 
-    # Condo analysis grouped by project, driven by a project-name dropdown. The select
-    # is rendered server-side (escaped); the detail cards are filled client-side from
-    # the embedded JSON when a project is chosen. Falls back to an empty-state note.
+    # Condo analysis grouped by project — one row per project (escaped), sorted by
+    # count desc: number of available condos, 1- & 2-bedroom average price, price/m².
     def condo_by_project_section
-      projects = @report[:condo_by_project]
-      return %(<section class="block"><h2>Căn hộ theo dự án</h2><p class="empty">Không có dữ liệu căn hộ theo dự án.</p></section>) if projects.empty?
-
-      options = projects.map.with_index do |row, i|
-        %(<option value="#{i}">#{h(row[:project_name])} (#{row[:count]})</option>)
-      end.join
-
-      <<~HTML
-        <section class="block">
-          <h2>Căn hộ theo dự án</h2>
-          <div class="project-picker">
-            <label for="projectSelect">Chọn dự án</label>
-            <select id="projectSelect">#{options}</select>
-          </div>
-          <div id="projectDetail" class="project-detail"></div>
-        </section>
-      HTML
+      header_row = [ "Dự án", "Số căn", "Giá TB 1PN", "Giá TB 2PN", "Giá / m²" ]
+      rows = @report[:condo_by_project].map do |row|
+        [ h(row[:project_name]), row[:count].to_s,
+          money(row[:avg_price_1bed]), money(row[:avg_price_2bed]),
+          price_per_m2(row[:avg_price_per_m2]) ]
+      end
+      table("Căn hộ theo dự án", header_row, rows, empty: "Không có dữ liệu căn hộ theo dự án.")
     end
 
     def by_type_table
@@ -179,16 +168,7 @@ module Reports
         priceDistribution: {
           labels: @report[:price_distribution].map { |r| r[:label] },
           counts: @report[:price_distribution].map { |r| r[:count] }
-        },
-        condoByProject: @report[:condo_by_project].map do |r|
-          {
-            name: r[:project_name],
-            count: r[:count],
-            avg1: r[:avg_price_1bed],
-            avg2: r[:avg_price_2bed],
-            ppm2: r[:avg_price_per_m2]
-          }
-        end
+        }
       }
     end
 
@@ -229,38 +209,6 @@ module Reports
                   datasets: [{ label: "Số tin", data: DATA.priceDistribution.counts, backgroundColor: "#f59e0b" }] },
           options: noLegend
         });
-
-        // Condo-by-project: the dropdown picks a project; the cards below show its figures.
-        (function () {
-          const select = document.getElementById("projectSelect");
-          const detail = document.getElementById("projectDetail");
-          if (!select || !detail) return;
-
-          const ty = v => v == null ? "—" : (v / 1e9).toFixed(2) + " tỷ";
-          const ppm2 = v => v == null ? "—" : (v / 1e6).toFixed(1) + " triệu/m²";
-          const esc = s => { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; };
-
-          function card(value, label) {
-            return '<div class="card"><div class="card-value">' + value +
-                   '</div><div class="card-label">' + label + '</div></div>';
-          }
-
-          function render(i) {
-            const p = DATA.condoByProject[i];
-            if (!p) { detail.innerHTML = ""; return; }
-            detail.innerHTML =
-              '<p class="project-name">' + esc(p.name) + '</p>' +
-              '<div class="cards">' +
-                card(p.count, "Số căn hộ đang bán") +
-                card(ty(p.avg1), "Giá TB căn 1 phòng ngủ") +
-                card(ty(p.avg2), "Giá TB căn 2 phòng ngủ") +
-                card(ppm2(p.ppm2), "Giá / m² (TB)") +
-              '</div>';
-          }
-
-          select.addEventListener("change", e => render(Number(e.target.value)));
-          render(0);
-        })();
       JS
     end
 
@@ -290,12 +238,6 @@ module Reports
         th { background: #f9fafb; font-weight: 600; }
         tbody tr:last-child td { border-bottom: none; }
         .empty { color: #9ca3af; font-size: 13px; margin: 0; }
-        .project-picker { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-        .project-picker label { font-size: 13px; color: #6b7280; }
-        .project-picker select { font: inherit; padding: 8px 10px; border: 1px solid #d1d5db;
-                                 border-radius: 8px; background: #fff; max-width: 100%; }
-        .project-detail .project-name { margin: 16px 0 0; font-size: 16px; font-weight: 600; }
-        .project-detail .cards { margin: 12px 0 0; }
       CSS
     end
 

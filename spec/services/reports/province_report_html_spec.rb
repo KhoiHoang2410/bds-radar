@@ -34,20 +34,17 @@ RSpec.describe Reports::ProvinceReportHtml do
     expect(payload["priceDistribution"]["counts"].sum).to eq(3)
   end
 
-  it "renders a project dropdown and embeds the condo-by-project figures" do
+  it "renders a condo-by-project table with a row per project" do
     create(:real_estate, crawl_province: hcm, type: "condo", project_name: "Vinhomes", bedrooms: 1, price: 2_000_000_000, area: 40.0)
     create(:real_estate, crawl_province: hcm, type: "condo", project_name: "Vinhomes", bedrooms: 2, price: 4_000_000_000, area: 50.0)
+    create(:real_estate, crawl_province: hcm, type: "condo", project_name: "Masteri", bedrooms: 1, price: 3_000_000_000, area: 60.0)
 
     doc = html
-    expect(doc).to include(%(id="projectSelect"))
-    expect(doc).to include(%(id="projectDetail"))
+    expect(doc).to include("Căn hộ theo dự án")
     expect(doc).to include("Vinhomes")
-
-    payload = JSON.parse(doc[/const DATA = (\{.*?\});/m, 1])
-    vin = payload["condoByProject"].find { |r| r["name"] == "Vinhomes" }
-    expect(vin["count"]).to eq(2)
-    expect(vin["avg1"]).to eq(2_000_000_000.0)
-    expect(vin["avg2"]).to eq(4_000_000_000.0)
+    expect(doc).to include("Masteri")
+    # No dropdown — figures are rendered server-side, not behind a select.
+    expect(doc).not_to include("projectSelect")
   end
 
   it "shows an empty-state note when no condo has a project name" do
@@ -56,7 +53,7 @@ RSpec.describe Reports::ProvinceReportHtml do
     expect(html).to include("Không có dữ liệu căn hộ theo dự án.")
   end
 
-  it "escapes a malicious project name in the dropdown options" do
+  it "escapes a malicious project name in the table" do
     create(:real_estate, crawl_province: hcm, type: "condo", project_name: "<img src=x>", bedrooms: 1)
 
     doc = html
