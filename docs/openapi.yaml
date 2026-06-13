@@ -198,8 +198,10 @@ paths:
       description: >
         A report over the province's active listings: count/avg-price/avg-area by
         type, listing count by bedroom, condo & land average price per bedroom, land
-        price per m², and a listing count distribution across price buckets. Default
-        is HTML (interactive Chart.js charts); request `report.pdf` for the PDF.
+        price per m², a listing count distribution across price buckets, and a
+        condo-by-project breakdown (units, 1- & 2-bedroom average price, price per m² —
+        selectable via a project dropdown in HTML). Default is HTML (interactive
+        Chart.js charts); request `report.pdf` for the PDF.
       parameters:
         - { name: province_id, in: path, required: true, schema: { type: integer } }
         - name: format
