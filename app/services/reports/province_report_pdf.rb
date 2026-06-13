@@ -16,13 +16,17 @@ module Reports
 
     def initialize(report)
       @report = report
-      @pdf = Prawn::Document.new(page_size: "A4", margin: 40)
+      # The PDF /Title metadata is what the browser shows as the tab title when the
+      # document is viewed inline.
+      @pdf = Prawn::Document.new(page_size: "A4", margin: 40,
+                                 info: { Title: "Report for #{report[:province].name}" })
       install_unicode_font
     end
 
     def render
       heading
       summary_section
+      condo_by_project_section
       price_per_bedroom_section
       land_by_district_ward_section
       price_distribution_section
@@ -58,8 +62,32 @@ module Reports
       render_table(data)
     end
 
-    # Only condos are analysed by bedroom count — land is analysed by area
-    # (land_by_area_section), since land listings rarely carry a bedroom count.
+    # Condos grouped by project: number of units, 1- & 2-bedroom average price, price/m².
+    # (The HTML report shows these one project at a time via a dropdown; the PDF lists all.)
+    def condo_by_project_section
+      projects = @report[:condo_by_project]
+      section_title("Căn hộ theo dự án")
+      if projects.empty?
+        @pdf.text "Không có dữ liệu căn hộ theo dự án.", size: 9, color: "888888"
+        @pdf.move_down 8
+        return
+      end
+
+      data = [ [ "Dự án", "Số căn", "Giá TB 1PN", "Giá TB 2PN", "Giá / m²" ] ]
+      projects.each do |row|
+        data << [
+          row[:project_name].to_s,
+          row[:count].to_s,
+          money(row[:avg_price_1bed]),
+          money(row[:avg_price_2bed]),
+          price_per_m2(row[:avg_price_per_m2])
+        ]
+      end
+      render_table(data)
+    end
+
+    # Only condos are analysed by bedroom count — land is analysed by area within each
+    # ward (land_by_district_ward_section), since land rarely carries a bedroom count.
     def price_per_bedroom_section
       rows = @report[:price_per_bedroom][:condo]
       section_title("Căn hộ — giá theo số phòng ngủ")

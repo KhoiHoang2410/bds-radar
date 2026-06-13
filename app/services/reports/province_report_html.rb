@@ -27,7 +27,7 @@ module Reports
         <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>Báo cáo bất động sản — #{h(province_name)}</title>
+        <title>Report for #{h(province_name)}</title>
         <script src="#{CHART_CDN}"></script>
         <style>#{styles}</style>
         </head>
@@ -36,6 +36,7 @@ module Reports
           #{header}
           #{stat_cards}
           #{charts_grid}
+          #{condo_by_project_section}
           #{by_type_table}
           #{price_per_bedroom_tables}
           #{land_by_district_ward_section}
@@ -91,6 +92,18 @@ module Reports
           <div class="chart-box"><h2>Phân bố theo khoảng giá</h2><canvas id="priceDist"></canvas></div>
         </section>
       HTML
+    end
+
+    # Condo analysis grouped by project — one row per project (escaped), sorted by
+    # count desc: number of available condos, 1- & 2-bedroom average price, price/m².
+    def condo_by_project_section
+      header_row = [ "Dự án", "Số căn", "Giá TB 1PN", "Giá TB 2PN", "Giá / m²" ]
+      rows = @report[:condo_by_project].map do |row|
+        [ h(row[:project_name]), row[:count].to_s,
+          money(row[:avg_price_1bed]), money(row[:avg_price_2bed]),
+          price_per_m2(row[:avg_price_per_m2]) ]
+      end
+      table("Căn hộ theo dự án", header_row, rows, empty: "Không có dữ liệu căn hộ theo dự án.")
     end
 
     def by_type_table
@@ -172,9 +185,16 @@ module Reports
       }
     end
 
+    # JSON embedded inside a <script> element: escape the HTML-significant characters
+    # to their \\uXXXX form so free-text values (e.g. a project name) can't break out of
+    # the script with </script> or be interpreted as markup. Stays valid JSON.
+    def embed_json(data)
+      JSON.generate(data).gsub("<", "\\u003c").gsub(">", "\\u003e").gsub("&", "\\u0026")
+    end
+
     def chart_script
       <<~JS
-        const DATA = #{JSON.generate(chart_data)};
+        const DATA = #{embed_json(chart_data)};
         const PALETTE = ["#2563eb","#16a34a","#f59e0b","#dc2626","#7c3aed","#0891b2","#db2777"];
         const palette = n => Array.from({length: n}, (_, i) => PALETTE[i % PALETTE.length]);
         const noLegend = { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } };

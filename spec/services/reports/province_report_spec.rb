@@ -89,6 +89,33 @@ RSpec.describe Reports::ProvinceReport do
     expect(report[:land_by_district_ward]).to be_empty
   end
 
+  it "groups condos by project with 1-/2-bedroom average price, price/m², and count" do
+    create(:real_estate, crawl_province: hcm, type: "condo", project_name: "Vinhomes", bedrooms: 1, price: 2_000_000_000, area: 40.0)
+    create(:real_estate, crawl_province: hcm, type: "condo", project_name: "Vinhomes", bedrooms: 2, price: 4_000_000_000, area: 50.0)
+    create(:real_estate, crawl_province: hcm, type: "condo", project_name: "Vinhomes", bedrooms: 2, price: 6_000_000_000, area: 50.0)
+    create(:real_estate, crawl_province: hcm, type: "condo", project_name: "Masteri", bedrooms: 1, price: 3_000_000_000, area: 60.0)
+    # excluded: blank project, and non-condo types
+    create(:real_estate, crawl_province: hcm, type: "condo", project_name: nil, bedrooms: 2, price: 5_000_000_000)
+    create(:real_estate, crawl_province: hcm, type: "house", project_name: "Vinhomes", bedrooms: 2, price: 9_000_000_000)
+
+    projects = report[:condo_by_project]
+    expect(projects.map { |r| r[:project_name] }).to eq(%w[Vinhomes Masteri]) # sorted by count desc
+
+    vin = projects.find { |r| r[:project_name] == "Vinhomes" }
+    expect(vin[:count]).to eq(3)
+    expect(vin[:avg_price_1bed]).to eq(2_000_000_000.0)
+    expect(vin[:avg_price_2bed]).to eq(5_000_000_000.0)
+    # (50M + 80M + 120M) / 3 per m²
+    expect(vin[:avg_price_per_m2]).to be_within(1.0).of(83_333_333.33)
+  end
+
+  it "returns an empty condo-by-project list when no condo has a project name" do
+    create(:real_estate, crawl_province: hcm, type: "condo", project_name: nil, bedrooms: 2)
+    create(:real_estate, crawl_province: hcm, type: "land", project_name: "", bedrooms: nil)
+
+    expect(report[:condo_by_project]).to be_empty
+  end
+
   it "buckets listings into price ranges" do
     create(:real_estate, crawl_province: hcm, price: 800_000_000)
     create(:real_estate, crawl_province: hcm, price: 2_000_000_000)
