@@ -17,6 +17,17 @@ class RealEstatesController < ApplicationController
     render_representer(RealEstateRepresenter.new(RealEstate.find(params[:id])))
   end
 
+  # GET /real_estates/map — geo-grid-aggregated cells for the price heatmap.
+  # Reuses index's base_scope + ransack filters (incl. the bbox via
+  # q[latitude_gteq]/_lteq + q[longitude_gteq]/_lteq), then snaps coords into
+  # bins (ADR-0003). Optional q-independent ?precision= overrides bin size.
+  def map
+    scope = base_scope.ransack(params[:q]).result
+    precision = MapGridAggregator.clamp_precision(params[:precision])
+    cells = MapGridAggregator.call(scope, precision: precision)
+    render_representer(MapCellsRepresenter.new(MapCellCollection.new(cells: cells, precision: precision)))
+  end
+
   private
 
   # Default to active rows unless the caller explicitly filters on status.

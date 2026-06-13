@@ -19,7 +19,7 @@ RSpec.describe "Ward gazetteer" do
     hanoi = Province.find_by!(name: "Hà Nội")
     w = Ward.find_by!(ward: "Phường Ba Đình", province: hanoi)
 
-    expect(WardMatcher.call(ward: "Phường Ba Đình", province_id: hanoi.id)).to eq(w.id)
-    expect(WardMatcher.call(ward: "phuong ba dinh", province_id: hanoi.id)).to eq(w.id)
+    expect(Ward.match(ward: "Phường Ba Đình", province_id: hanoi.id)).to eq(w.id)
+    expect(Ward.match(ward: "phuong ba dinh", province_id: hanoi.id)).to eq(w.id)
   end
 end

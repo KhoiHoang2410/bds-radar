@@ -30,5 +30,8 @@ Rails.application.routes.draw do
     resource :report, only: [ :show ], controller: :reports
   end
   resources :real_estate_sources, only: [ :index ]
-  resources :real_estates, only: [ :index, :show ]
+  resources :real_estates, only: [ :index, :show ] do
+    # Geo-grid price aggregation for the heatmap (ADR-0003).
+    get :map, on: :collection
+  end
 end
