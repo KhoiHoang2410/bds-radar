@@ -25,7 +25,8 @@ Rails.application.routes.draw do
   mount Sidekiq::Web => "/sidekiq"
 
   resources :provinces, only: [ :index, :update ] do
-    # PDF analytics export for the province's real-estate listings.
+    # Analytics report for the province's real-estate listings.
+    # HTML (default, interactive charts) or PDF: report.html / report.pdf
     resource :report, only: [ :show ], controller: :reports
   end
   resources :real_estate_sources, only: [ :index ]

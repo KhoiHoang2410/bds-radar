@@ -25,6 +25,18 @@ RSpec.describe Reports::ProvinceReport do
     expect(condo).to include(count: 2, avg_price: 5_000_000_000.0, avg_area: 60.0)
   end
 
+  it "counts listings by bedroom count (across types), excluding rows without bedrooms" do
+    create(:real_estate, crawl_province: hcm, type: "condo", bedrooms: 2, price: 4_000_000_000)
+    create(:real_estate, crawl_province: hcm, type: "house", bedrooms: 2, price: 6_000_000_000)
+    create(:real_estate, crawl_province: hcm, type: "house", bedrooms: 3, price: 9_000_000_000)
+    create(:real_estate, crawl_province: hcm, type: "land", bedrooms: nil, price: 5_000_000_000)
+
+    by_bedrooms = report[:by_bedrooms]
+    expect(by_bedrooms.map { |r| r[:bedrooms] }).to eq([ 2, 3 ])
+    two = by_bedrooms.find { |r| r[:bedrooms] == 2 }
+    expect(two).to include(count: 2, avg_price: 5_000_000_000.0)
+  end
+
   it "computes condo average price per bedroom, grouped by bedroom count" do
     create(:real_estate, crawl_province: hcm, type: "condo", bedrooms: 2, price: 4_000_000_000)
     create(:real_estate, crawl_province: hcm, type: "condo", bedrooms: 2, price: 6_000_000_000)
