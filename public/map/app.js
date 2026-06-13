@@ -16,6 +16,10 @@
 
   // Leaflet ships default marker icons by relative path; point them at the
   // locally-vendored images so nothing is fetched from a CDN.
+  // Icon.Default._getIconUrl prepends the auto-detected imagePath to whatever
+  // URL we set, which doubles our absolute paths (".../images//map/vendor/...")
+  // and 404s every marker. Drop it so our explicit URLs are used verbatim.
+  delete L.Icon.Default.prototype._getIconUrl;
   L.Icon.Default.mergeOptions({
     iconRetinaUrl: "/map/vendor/leaflet/images/marker-icon-2x.png",
     iconUrl: "/map/vendor/leaflet/images/marker-icon.png",
@@ -57,9 +61,13 @@
   // lets the user toggle either one off so they never obscure each other.
   var markersLayer = L.layerGroup().addTo(map);
   var heatLayer = L.heatLayer([], {
-    radius: 35,
-    blur: 20,
-    max: 1.0,
+    radius: 40,
+    blur: 22,
+    // Geo-grid cells are sparse, so max:1.0 leaves even the hottest cell
+    // near-transparent (peak alpha ~20%). Cap accumulation lower and floor the
+    // opacity so the price/m² ramp actually reads against the basemap.
+    max: 0.5,
+    minOpacity: 0.4,
     gradient: HEAT_GRADIENT,
   }).addTo(map);
 
