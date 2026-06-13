@@ -4,6 +4,7 @@ class Province < ApplicationRecord
 
   has_many :real_estate_sources, foreign_key: :province_id, inverse_of: :crawl_province, dependent: :destroy
   has_many :real_estates, foreign_key: :province_id, inverse_of: :crawl_province, dependent: :destroy
+  has_many :wards, dependent: :destroy
 
   scope :scheduled, -> { where(schedule_fetch: true) }
 end

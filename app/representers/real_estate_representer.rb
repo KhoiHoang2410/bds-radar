@@ -9,7 +9,7 @@ class RealEstateRepresenter < Roar::Decorator
   property :province
   property :district_or_city
   property :ward
-  property :ward_city_id
+  property :ward_id
   property :latitude, getter: ->(*) { latitude&.to_f }
   property :longitude, getter: ->(*) { longitude&.to_f }
   property :image_urls

@@ -1,8 +1,8 @@
 # Post-2025 canonical Vietnamese provinces/cities (63 → 34, districts abolished).
 # Source: 2025 Vietnamese administrative reform (effective 2025-07-01).
 # `schedule_fetch` is enabled for the v1 coverage set only (HCM, Hà Nội, Khánh Hòa —
-# the last covers Nha Trang). `alternatives` hold common spellings/aliases the
-# WardCity matcher and province lookups canonicalize against.
+# the last covers Nha Trang). `alternatives` hold common spellings/aliases that
+# province lookups canonicalize against.
 
 ENABLED = [ "Hồ Chí Minh", "Hà Nội", "Khánh Hòa" ].freeze
 
@@ -54,16 +54,18 @@ end
 
 puts "Seeded #{Province.count} provinces (#{Province.scheduled.count} scheduled: #{Province.scheduled.pluck(:name).join(', ')})"
 
-# WardCity — canonical post-2025 (ward, province) gazetteer for the matcher (#6).
-# Vendored offline in db/data/ward_cities.json (sourced from provinces.open-api.vn v2,
-# the post-2025 2-tier dataset; refresh with `rake gazetteer:refresh`). Seeding is
+# Ward — canonical post-2025 (ward, province_id) gazetteer for the matcher (#6).
+# Vendored offline in db/data/wards.json (sourced from provinces.open-api.vn v2, the
+# post-2025 2-tier dataset; refresh with `rake gazetteer:refresh`). The JSON is keyed
+# by canonical province name; we resolve it to the seeded Province's id. Seeding is
 # network-free + reproducible. Still best-effort/nullable by design — suppliers emit
 # legacy ward names mid-migration, and coords remain the identity (ADR-0001).
-ward_data = JSON.parse(File.read(Rails.root.join("db/data/ward_cities.json")))
-ward_data.each do |province, wards|
+ward_data = JSON.parse(File.read(Rails.root.join("db/data/wards.json")))
+ward_data.each do |province_name, wards|
+  province = Province.find_by!(name: province_name)
   wards.each do |ward|
-    WardCity.find_or_create_by!(ward: ward, province: province)
+    Ward.find_or_create_by!(ward: ward, province: province)
   end
 end
 
-puts "Seeded #{WardCity.count} ward_cities (full post-2025 gazetteer: #{ward_data.transform_values(&:size)})"
+puts "Seeded #{Ward.count} wards (full post-2025 gazetteer: #{ward_data.transform_values(&:size)})"

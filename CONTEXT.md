@@ -58,9 +58,9 @@ A `(latitude, longitude)` pair — the **canonical location identity** of a Real
 **Administrative path**:
 The denormalized 3-slot location label on each RealEstate: **province** (top-level city/tỉnh) → **district_or_city** (district / sub-city; e.g. `Thành phố Thủ Đức`) → **ward**. Carried on every supplier record, so search is a flat filter at any slot. Searching a province returns everything beneath it (a Thủ Đức listing is tagged `province = Hồ Chí Minh`, so "search HCM" includes Thủ Đức and all its wards) — no recursive tree needed.
 
-**WardCity**:
-A reference table that **canonicalizes** the Administrative path to the **post-2025 2-tier shape `(ward, province)`** — district abolished — and holds alternative spellings (e.g. `TPHCM` / `Tp Hồ Chí Minh` / `Sài Gòn` → one province). Columns are `ward` + `province` (not `city` — the table pairs a ward with its top-tier province). A **best-effort human-readable label**, NOT the location identity (that is Coordinates). A RealEstate may have Coordinates but no matched WardCity: the matcher resolves messy 3-tier supplier text against `(ward, province)` via exact → alternatives → fuzzy, and on ambiguity (a legacy ward existing under many old districts) returns **null rather than guessing**.
-_Avoid_: Location, region, area; `city` (the slot is the province)
+**Ward**:
+A reference table that **canonicalizes** the Administrative path to the **post-2025 2-tier shape `(ward, province_id)`** — district abolished — and holds alternative ward spellings. The province is a hard **FK to `provinces`** (not a string): province resolution is exact via the id the crawl already holds, so only the *ward* name is fuzzy-matched (`province_alternatives` is gone). A **best-effort human-readable label**, NOT the location identity (that is Coordinates). A RealEstate may have Coordinates but no matched Ward (`ward_id` nullable): the matcher resolves messy supplier ward text within the province via exact → alternatives → fuzzy, and on ambiguity (a legacy ward existing under many old districts) returns **null rather than guessing**.
+_Avoid_: Location, region, area; `city` (the slot is the province); WardCity (renamed to Ward)
 
 > ⚠️ **Naming trap (nhatot):** in the nhatot payload the field literally named `area` is the administrative **district**, NOT the property size. Property size lives in `size`. In our domain, **Area always means square-meters**; administrative place is **Ward/City/District**, never "area".
 

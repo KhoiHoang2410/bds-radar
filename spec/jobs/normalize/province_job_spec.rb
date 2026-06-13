@@ -36,15 +36,33 @@ RSpec.describe Normalize::ProvinceJob do
     expect(re).to have_attributes(bedrooms: 3, bathrooms: 2, posted_at: posted, title: "Bán căn hộ 3PN")
   end
 
-  it "resolves ward_city_id when the matcher finds one, leaves it nil otherwise" do
-    wc = create(:ward_city, ward: "Phường Bến Nghé", province: "Hồ Chí Minh")
+  it "resolves ward_id when the matcher finds one, leaves it nil otherwise" do
+    w = create(:ward, ward: "Phường Bến Nghé", province: hcm)
     matched = create(:real_estate_source, crawl_province: hcm, ward: "Phường Bến Nghé")
     unmatched = create(:real_estate_source, crawl_province: hcm, ward: "Phường Không Có")
 
     run
 
-    expect(RealEstate.find_by(real_estate_source_id: matched.id).ward_city_id).to eq(wc.id)
-    expect(RealEstate.find_by(real_estate_source_id: unmatched.id).ward_city_id).to be_nil
+    expect(RealEstate.find_by(real_estate_source_id: matched.id).ward_id).to eq(w.id)
+    expect(RealEstate.find_by(real_estate_source_id: unmatched.id).ward_id).to be_nil
+  end
+
+  it "skips a source missing a mandatory field (no partial RealEstate)" do
+    complete = create(:real_estate_source, crawl_province: hcm)
+    incomplete = create(:real_estate_source, crawl_province: hcm, price: nil)
+
+    run
+
+    expect(RealEstate.find_by(real_estate_source_id: complete.id)).to be_present
+    expect(RealEstate.find_by(real_estate_source_id: incomplete.id)).to be_nil
+  end
+
+  it "skips a source with no images (image_urls must be non-empty)" do
+    create(:real_estate_source, crawl_province: hcm, image_urls: [])
+
+    run
+
+    expect(RealEstate.count).to eq(0)
   end
 
   it "propagates source status (inactive source ⇒ inactive RealEstate)" do

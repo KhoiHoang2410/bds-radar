@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_06_12_000002) do
+ActiveRecord::Schema[8.0].define(version: 2026_06_13_000002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -57,17 +57,17 @@ ActiveRecord::Schema[8.0].define(version: 2026_06_12_000002) do
   end
 
   create_table "real_estates", force: :cascade do |t|
-    t.decimal "latitude", precision: 10, scale: 7
-    t.decimal "longitude", precision: 10, scale: 7
+    t.decimal "latitude", precision: 10, scale: 7, null: false
+    t.decimal "longitude", precision: 10, scale: 7, null: false
     t.bigint "province_id", null: false
-    t.bigint "ward_city_id"
+    t.bigint "ward_id"
     t.bigint "real_estate_source_id", null: false
-    t.string "province"
-    t.string "district_or_city"
-    t.string "ward"
-    t.decimal "area", precision: 12, scale: 2
-    t.bigint "price"
-    t.string "type"
+    t.string "province", null: false
+    t.string "district_or_city", null: false
+    t.string "ward", null: false
+    t.decimal "area", precision: 12, scale: 2, null: false
+    t.bigint "price", null: false
+    t.string "type", null: false
     t.string "image_urls", default: [], null: false, array: true
     t.string "source_urls", default: [], null: false, array: true
     t.string "status", default: "active", null: false
@@ -85,22 +85,22 @@ ActiveRecord::Schema[8.0].define(version: 2026_06_12_000002) do
     t.index ["real_estate_source_id"], name: "index_real_estates_on_real_estate_source_id", unique: true
     t.index ["status"], name: "index_real_estates_on_status"
     t.index ["type"], name: "index_real_estates_on_type"
-    t.index ["ward_city_id"], name: "index_real_estates_on_ward_city_id"
+    t.index ["ward_id"], name: "index_real_estates_on_ward_id"
   end
 
-  create_table "ward_cities", force: :cascade do |t|
+  create_table "wards", force: :cascade do |t|
     t.string "ward", null: false
-    t.string "province", null: false
+    t.bigint "province_id", null: false
     t.string "ward_alternatives", default: [], null: false, array: true
-    t.string "province_alternatives", default: [], null: false, array: true
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["province"], name: "index_ward_cities_on_province"
-    t.index ["ward", "province"], name: "index_ward_cities_on_ward_and_province", unique: true
+    t.index ["province_id"], name: "index_wards_on_province_id"
+    t.index ["ward", "province_id"], name: "index_wards_on_ward_and_province_id", unique: true
   end
 
   add_foreign_key "real_estate_sources", "provinces"
   add_foreign_key "real_estates", "provinces"
   add_foreign_key "real_estates", "real_estate_sources"
-  add_foreign_key "real_estates", "ward_cities"
+  add_foreign_key "real_estates", "wards"
+  add_foreign_key "wards", "provinces"
 end

@@ -8,14 +8,13 @@ module Normalize
 
     def perform(province_id)
       province = Province.find(province_id)
-      province.real_estate_sources.find_each { |source| upsert(source, province) }
+      province.real_estate_sources.find_each { |source| upsert(source) }
     end
 
     private
 
-    def upsert(source, province)
-      real_estate = RealEstate.find_or_initialize_by(real_estate_source_id: source.id)
-      real_estate.assign_attributes(
+    def upsert(source)
+      attrs = {
         latitude: source.latitude,
         longitude: source.longitude,
         province_id: source.province_id,                  # canonical (filter key)
@@ -32,8 +31,16 @@ module Normalize
         bathrooms: source.bathrooms,
         posted_at: source.posted_at,
         title: source.title,
-        ward_city_id: WardCityMatcher.call(ward: source.ward, province: province.name)
-      )
+        real_estate_source_id: source.id,
+        ward_id: WardMatcher.call(ward: source.ward, province_id: source.province_id)
+      }
+
+      # Mandatory-fields gate: a source missing any required field is silently skipped
+      # (no partial RealEstate rows). ward_id stays best-effort/nullable.
+      return unless RealEstateContract.new.call(attrs).success?
+
+      real_estate = RealEstate.find_or_initialize_by(real_estate_source_id: source.id)
+      real_estate.assign_attributes(attrs)
       real_estate.save!
     end
   end
