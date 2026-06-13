@@ -29,6 +29,11 @@
   var MAX_PAGES = 5; // => up to 500 markers per viewport before we cap + note
   var DEBOUNCE_MS = 300;
 
+  var TYPES = ["condo", "house", "land", "commercial", "other"];
+  // Price inputs are entered in triệu (millions VND); converted to raw VND for
+  // the q[price_*] ransack params, which match the stored VND price.
+  var PRICE_UNIT = 1e6;
+
   // Heatmap colour ramp (cold -> hot). Keep in sync with .legend-bar in app.css.
   var HEAT_GRADIENT = {
     0.0: "#2b83ba",
@@ -103,6 +108,99 @@
   };
   legendControl.addTo(map);
 
+  // --- Filter controls (issue #31) ------------------------------------------
+  // Hand-rolled (no third-party UI dep). Controls map to ransack q[...] params
+  // and compose: type + price range + area range are all sent together. Clearing
+  // resets to the default status=active view (we never send q[status_eq]).
+  var filterRefs = {};
+  var filterControl = L.control({ position: "topleft" });
+  filterControl.onAdd = function () {
+    var div = L.DomUtil.create("div", "filters");
+    var typeOptions = ['<option value="">All types</option>']
+      .concat(
+        TYPES.map(function (t) {
+          return '<option value="' + t + '">' + t + "</option>";
+        })
+      )
+      .join("");
+    div.innerHTML =
+      '<div class="filters-title">Filters</div>' +
+      '<label><span>Type</span>' +
+      '<select id="f-type">' +
+      typeOptions +
+      "</select></label>" +
+      '<label><span>Price (triệu)</span>' +
+      '<div class="filters-range">' +
+      '<input id="f-price-min" type="number" min="0" step="any" placeholder="min" />' +
+      '<input id="f-price-max" type="number" min="0" step="any" placeholder="max" />' +
+      "</div></label>" +
+      '<label><span>Area (m²)</span>' +
+      '<div class="filters-range">' +
+      '<input id="f-area-min" type="number" min="0" step="any" placeholder="min" />' +
+      '<input id="f-area-max" type="number" min="0" step="any" placeholder="max" />' +
+      "</div></label>" +
+      '<div class="filters-actions">' +
+      '<button type="button" class="apply" id="f-apply">Apply</button>' +
+      '<button type="button" class="clear" id="f-clear">Clear</button>' +
+      "</div>";
+
+    // Keep clicks/scrolls on the panel from panning/zooming the map underneath.
+    L.DomEvent.disableClickPropagation(div);
+    L.DomEvent.disableScrollPropagation(div);
+    return div;
+  };
+  filterControl.addTo(map);
+
+  // Cache input references and wire change/click handlers after the control DOM
+  // exists. Changing any control re-fetches both layers for the current bbox.
+  filterRefs.type = document.getElementById("f-type");
+  filterRefs.priceMin = document.getElementById("f-price-min");
+  filterRefs.priceMax = document.getElementById("f-price-max");
+  filterRefs.areaMin = document.getElementById("f-area-min");
+  filterRefs.areaMax = document.getElementById("f-area-max");
+
+  [
+    filterRefs.type,
+    filterRefs.priceMin,
+    filterRefs.priceMax,
+    filterRefs.areaMin,
+    filterRefs.areaMax,
+  ].forEach(function (el) {
+    el.addEventListener("change", function () {
+      scheduleRefresh();
+    });
+  });
+
+  document.getElementById("f-apply").addEventListener("click", function () {
+    refresh();
+  });
+  document.getElementById("f-clear").addEventListener("click", function () {
+    filterRefs.type.value = "";
+    filterRefs.priceMin.value = "";
+    filterRefs.priceMax.value = "";
+    filterRefs.areaMin.value = "";
+    filterRefs.areaMax.value = "";
+    refresh();
+  });
+
+  // Build the q[...] ransack params from the current filter inputs. Empty inputs
+  // are omitted so they don't constrain the query. Price is converted triệu->VND.
+  function activeFilters() {
+    var f = {};
+    if (filterRefs.type && filterRefs.type.value) {
+      f["q[type_eq]"] = filterRefs.type.value;
+    }
+    var pMin = parseFloat(filterRefs.priceMin.value);
+    var pMax = parseFloat(filterRefs.priceMax.value);
+    var aMin = parseFloat(filterRefs.areaMin.value);
+    var aMax = parseFloat(filterRefs.areaMax.value);
+    if (!isNaN(pMin)) f["q[price_gteq]"] = String(pMin * PRICE_UNIT);
+    if (!isNaN(pMax)) f["q[price_lteq]"] = String(pMax * PRICE_UNIT);
+    if (!isNaN(aMin)) f["q[area_gteq]"] = String(aMin);
+    if (!isNaN(aMax)) f["q[area_lteq]"] = String(aMax);
+    return f;
+  }
+
   // price_per_m2 is assumed to be VND per m² (raw price / area, ADR-0003 grid
   // aggregation). We display it as triệu/m² (millions of VND) for readability.
   function toTrieu(vndPerM2) {
@@ -161,7 +259,7 @@
     var total = 0;
 
     function fetchPage(page) {
-      var params = bboxParams();
+      var params = bboxParams(activeFilters());
       params.set("per_page", String(PER_PAGE));
       params.set("page", String(page));
       return fetch("/real_estates?" + params.toString(), {
@@ -193,7 +291,7 @@
   // Each cell is expected to look like { lat, lng, count, median_price,
   // price_per_m2 }.
   function fetchMapCells() {
-    var params = bboxParams();
+    var params = bboxParams(activeFilters());
     return fetch("/real_estates/map?" + params.toString(), {
       headers: { Accept: "application/json" },
     })
