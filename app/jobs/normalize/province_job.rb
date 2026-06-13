@@ -8,6 +8,7 @@ module Normalize
 
     def perform(province_id)
       province = Province.find(province_id)
+      @project_dictionary = ProjectMatcher.dictionary # built once per run, reused per source
       province.real_estate_sources.find_each { |source| upsert(source) }
     end
 
@@ -31,10 +32,12 @@ module Normalize
         bathrooms: source.bathrooms,
         posted_at: source.posted_at,
         title: source.title,
-        project_name: source.project_name,                # condo project (nullable, nhatot-only)
+        # Structured project (nhatot) when present, else recognize a known project name
+        # in the title (mogi, or blank-name nhatot condos). No id from a title guess.
+        project_name: source.project_name.presence || ProjectMatcher.match(source.title, dictionary: @project_dictionary),
         project_external_id: source.project_external_id,
         real_estate_source_id: source.id,
-        ward_id: WardMatcher.call(ward: source.ward, province_id: source.province_id)
+        ward_id: Ward.match(ward: source.ward, province_id: source.province_id)
       }
 
       # Mandatory-fields gate: a source missing any required field is silently skipped

@@ -49,6 +49,17 @@ RSpec.describe Normalize::ProvinceJob do
       .to have_attributes(project_name: nil, project_external_id: nil)
   end
 
+  it "recognizes a known project name in a title when the source has no structured one (mogi fallback)" do
+    create(:real_estate_source, crawl_province: hcm, supplier: "nhatot", project_name: "Akari City") # seeds dictionary
+    mogi = create(:real_estate_source, crawl_province: hcm, supplier: "mogi", project_name: nil,
+                                       title: "Bán căn hộ Akari City Quận Tân Bình giá tốt")
+
+    run
+
+    expect(RealEstate.find_by(real_estate_source_id: mogi.id))
+      .to have_attributes(project_name: "Akari City", project_external_id: nil)
+  end
+
   it "resolves ward_id when the matcher finds one, leaves it nil otherwise" do
     w = create(:ward, ward: "Phường Bến Nghé", province: hcm)
     matched = create(:real_estate_source, crawl_province: hcm, ward: "Phường Bến Nghé")
