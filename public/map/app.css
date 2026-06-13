@@ -77,3 +77,64 @@ html, body {
   color: #6b7280;
   font-style: italic;
 }
+
+/* Filter controls (issue #31). Hand-rolled UI, no third-party deps. */
+.filters {
+  background: #fff;
+  padding: 10px 12px;
+  border-radius: 6px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  font-size: 12px;
+  color: #111;
+  width: 200px;
+}
+.filters .filters-title {
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.filters label {
+  display: block;
+  margin-bottom: 8px;
+}
+.filters label > span {
+  display: block;
+  margin-bottom: 2px;
+  color: #374151;
+}
+.filters select,
+.filters input[type="number"] {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 4px 6px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  font-size: 12px;
+}
+.filters .filters-range {
+  display: flex;
+  gap: 6px;
+}
+.filters .filters-range input {
+  width: 50%;
+}
+.filters .filters-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+.filters button {
+  flex: 1;
+  padding: 5px 8px;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.filters button.apply {
+  background: #2563eb;
+  color: #fff;
+}
+.filters button.clear {
+  background: #e5e7eb;
+  color: #111;
+}
