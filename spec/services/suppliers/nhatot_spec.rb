@@ -48,6 +48,19 @@ RSpec.describe Suppliers::Nhatot do
       sparse = supplier.normalize(raw.except("rooms", "toilets", "list_time", "subject"))
       expect([ sparse.bedrooms, sparse.bathrooms, sparse.posted_at, sparse.title ]).to all(be_nil)
     end
+
+    it "extracts the condo project name + id from a real condo ad" do
+      condo = supplier.normalize(nhatot_ads("ad_listing_condo").first)
+      expect(condo.type).to eq("condo")
+      expect(condo.project_name).to eq("Khu đô thị mới Vĩnh Hòa")
+      expect(condo.project_external_id).to eq("1614500601")
+    end
+
+    it "leaves the project columns nil when the ad has no project (blank string ⇒ nil)" do
+      expect(raw["pty_project_name"]).to eq("") # the house fixtures carry an empty string
+      expect(listing.project_name).to be_nil
+      expect(listing.project_external_id).to be_nil
+    end
   end
 
   describe "#each_listing" do

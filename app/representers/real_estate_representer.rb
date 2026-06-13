@@ -19,5 +19,7 @@ class RealEstateRepresenter < Roar::Decorator
   property :bathrooms
   property :posted_at
   property :title
+  property :project_name
+  property :project_external_id
   property :map_url # derived from coords, never stored (ADR-0001)
 end

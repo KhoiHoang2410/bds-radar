@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_06_13_000002) do
+ActiveRecord::Schema[8.0].define(version: 2026_06_13_000006) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -50,6 +50,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_06_13_000002) do
     t.integer "bathrooms"
     t.datetime "posted_at"
     t.string "title"
+    t.string "project_name"
+    t.string "project_external_id"
+    t.index ["project_external_id"], name: "index_real_estate_sources_on_project_external_id"
     t.index ["province_id"], name: "index_real_estate_sources_on_province_id"
     t.index ["status"], name: "index_real_estate_sources_on_status"
     t.index ["supplier", "external_id"], name: "index_real_estate_sources_on_supplier_and_external_id", unique: true
@@ -77,10 +80,13 @@ ActiveRecord::Schema[8.0].define(version: 2026_06_13_000002) do
     t.integer "bathrooms"
     t.datetime "posted_at"
     t.string "title"
+    t.string "project_name"
+    t.string "project_external_id"
     t.index ["area"], name: "index_real_estates_on_area"
     t.index ["bedrooms"], name: "index_real_estates_on_bedrooms"
     t.index ["latitude", "longitude"], name: "index_real_estates_on_latitude_and_longitude"
     t.index ["price"], name: "index_real_estates_on_price"
+    t.index ["project_external_id"], name: "index_real_estates_on_project_external_id"
     t.index ["province_id"], name: "index_real_estates_on_province_id"
     t.index ["real_estate_source_id"], name: "index_real_estates_on_real_estate_source_id", unique: true
     t.index ["status"], name: "index_real_estates_on_status"
