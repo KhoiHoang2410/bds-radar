@@ -58,6 +58,18 @@ RSpec.describe "Reports", type: :request do
 
       expect(response.media_type).to eq("text/html")
     end
+
+    it "lists only scheduled provinces in the province switcher" do
+      hcm = create(:province, name: "Hồ Chí Minh", schedule_fetch: true)
+      hanoi = create(:province, name: "Hà Nội", schedule_fetch: true)
+      danang = create(:province, name: "Đà Nẵng", schedule_fetch: false)
+
+      get "/provinces/#{hcm.id}/report.html"
+
+      expect(response.body).to include(%(<option value="#{hcm.id}" selected>Hồ Chí Minh</option>))
+      expect(response.body).to include(%(<option value="#{hanoi.id}">Hà Nội</option>))
+      expect(response.body).not_to include(%(value="#{danang.id}"))
+    end
   end
 
   it "404s for an unknown province" do

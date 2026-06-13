@@ -72,4 +72,18 @@ RSpec.describe Reports::ProvinceReportHtml do
   it "renders empty-state notes when the province has no listings" do
     expect(html).to include("Không có")
   end
+
+  it "renders a province switcher with the supplied provinces, current one preselected" do
+    hanoi = create(:province, name: "Hà Nội")
+    doc = described_class.call(Reports::ProvinceReport.call(hcm), provinces: [ hcm, hanoi ])
+
+    expect(doc).to include(%(id="provinceSelect"))
+    expect(doc).to include(%(<option value="#{hcm.id}" selected>Hồ Chí Minh</option>))
+    expect(doc).to include(%(<option value="#{hanoi.id}">Hà Nội</option>))
+    expect(doc).to include("/provinces/' + this.value + '/report.html")
+  end
+
+  it "omits the province switcher when no provinces are supplied" do
+    expect(html).not_to include(%(id="provinceSelect"))
+  end
 end
