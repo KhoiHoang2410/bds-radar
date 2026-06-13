@@ -1,15 +1,15 @@
 /*
- * BDS Radar — points map (issue #28).
+ * BDS Radar — map client.
  *
  * A static Leaflet client (ADR-0003) that renders live RealEstate inventory.
  * - Base tiles: OpenStreetMap raster, with the mandatory "© OpenStreetMap
  *   contributors" attribution always visible.
- * - On load and on every pan/zoom (moveend) it derives the viewport bbox and
- *   queries GET /real_estates with the bbox ransack params, dropping one marker
- *   per result. Default status=active is respected (we never send q[status_eq]).
- * - The index caps per_page at 100; we page through up to MAX_PAGES and, if the
- *   viewport still holds more listings than we drew, show a visible cap note so
- *   data is never silently dropped.
+ * - Points layer (issue #28): on load and on every pan/zoom (moveend) it derives
+ *   the viewport bbox and queries GET /real_estates with the bbox ransack params,
+ *   dropping one marker per result. Default status=active is respected.
+ * - Price heatmap layer (issue #30): overlays geo-grid aggregation cells from
+ *   GET /real_estates/map, colour-graded by price_per_m2, with a visible legend.
+ *   Points + heatmap coexist behind a Leaflet layer control.
  */
 (function () {
   "use strict";
@@ -29,6 +29,15 @@
   var MAX_PAGES = 5; // => up to 500 markers per viewport before we cap + note
   var DEBOUNCE_MS = 300;
 
+  // Heatmap colour ramp (cold -> hot). Keep in sync with .legend-bar in app.css.
+  var HEAT_GRADIENT = {
+    0.0: "#2b83ba",
+    0.4: "#abdda4",
+    0.6: "#ffffbf",
+    0.8: "#fdae61",
+    1.0: "#d7191c",
+  };
+
   // --- Map ------------------------------------------------------------------
   var map = L.map("map").setView(DEFAULT_CENTER, DEFAULT_ZOOM);
 
@@ -39,8 +48,26 @@
       '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
   }).addTo(map);
 
-  // Layer that holds the listing markers; cleared and refilled on each fetch.
+  // Overlay layers. Both are added by default so they coexist; the layer control
+  // lets the user toggle either one off so they never obscure each other.
   var markersLayer = L.layerGroup().addTo(map);
+  var heatLayer = L.heatLayer([], {
+    radius: 35,
+    blur: 20,
+    max: 1.0,
+    gradient: HEAT_GRADIENT,
+  }).addTo(map);
+
+  L.control
+    .layers(
+      null,
+      {
+        "Listings (points)": markersLayer,
+        "Price heatmap": heatLayer,
+      },
+      { collapsed: false }
+    )
+    .addTo(map);
 
   var statusEl = document.getElementById("status");
   var capNoteEl = document.getElementById("cap-note");
@@ -65,11 +92,53 @@
     capNoteEl.hidden = true;
   }
 
+  // --- Legend (colour -> price per m²) --------------------------------------
+  var legendControl = L.control({ position: "bottomright" });
+  legendControl.onAdd = function () {
+    var div = L.DomUtil.create("div", "legend");
+    div.innerHTML =
+      '<div class="legend-title">Price / m²</div>' +
+      '<div class="legend-empty">no data in view</div>';
+    return div;
+  };
+  legendControl.addTo(map);
+
+  // price_per_m2 is assumed to be VND per m² (raw price / area, ADR-0003 grid
+  // aggregation). We display it as triệu/m² (millions of VND) for readability.
+  function toTrieu(vndPerM2) {
+    return (vndPerM2 / 1e6).toFixed(1);
+  }
+
+  function updateLegend(minPpm, maxPpm) {
+    var container = legendControl.getContainer();
+    if (minPpm == null || maxPpm == null) {
+      container.innerHTML =
+        '<div class="legend-title">Price / m²</div>' +
+        '<div class="legend-empty">no data in view</div>';
+      return;
+    }
+    var midPpm = (minPpm + maxPpm) / 2;
+    container.innerHTML =
+      '<div class="legend-title">Price / m² (triệu/m²)</div>' +
+      '<div class="legend-bar"></div>' +
+      '<div class="legend-scale">' +
+      "<span>" +
+      toTrieu(minPpm) +
+      "</span>" +
+      "<span>" +
+      toTrieu(midPpm) +
+      "</span>" +
+      "<span>" +
+      toTrieu(maxPpm) +
+      "</span>" +
+      "</div>";
+  }
+
   // --- Querying -------------------------------------------------------------
 
-  // Build the ransack bbox query for the current viewport. Extra params (used by
-  // later slices for filters) are merged in. We never set q[status_eq], so the
-  // API default of status=active applies.
+  // Shared bbox ransack params for the current viewport. Extra params (used by
+  // later filter slices) are merged in. We never set q[status_eq], so the API
+  // default of status=active applies.
   function bboxParams(extra) {
     var b = map.getBounds();
     var params = new URLSearchParams();
@@ -77,7 +146,6 @@
     params.set("q[latitude_lteq]", b.getNorth());
     params.set("q[longitude_gteq]", b.getWest());
     params.set("q[longitude_lteq]", b.getEast());
-    params.set("per_page", String(PER_PAGE));
     if (extra) {
       Object.keys(extra).forEach(function (k) {
         params.set(k, extra[k]);
@@ -94,6 +162,7 @@
 
     function fetchPage(page) {
       var params = bboxParams();
+      params.set("per_page", String(PER_PAGE));
       params.set("page", String(page));
       return fetch("/real_estates?" + params.toString(), {
         headers: { Accept: "application/json" },
@@ -118,6 +187,26 @@
     return fetchPage(1);
   }
 
+  // Fetch geo-grid aggregation cells for the viewport from GET /real_estates/map.
+  // The exact response envelope is being finalised on another branch, so we
+  // unwrap defensively: a bare array, { cells }, { map_cells }, or { data }.
+  // Each cell is expected to look like { lat, lng, count, median_price,
+  // price_per_m2 }.
+  function fetchMapCells() {
+    var params = bboxParams();
+    return fetch("/real_estates/map?" + params.toString(), {
+      headers: { Accept: "application/json" },
+    })
+      .then(function (res) {
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        return res.json();
+      })
+      .then(function (data) {
+        if (Array.isArray(data)) return data;
+        return data.cells || data.map_cells || data.data || [];
+      });
+  }
+
   function renderMarkers(records) {
     markersLayer.clearLayers();
     records.forEach(function (re) {
@@ -126,21 +215,77 @@
     });
   }
 
+  function cellLat(c) {
+    return c.lat != null ? c.lat : c.latitude;
+  }
+  function cellLng(c) {
+    return c.lng != null ? c.lng : c.longitude;
+  }
+
+  function renderHeat(cells) {
+    var usable = cells.filter(function (c) {
+      return (
+        cellLat(c) != null &&
+        cellLng(c) != null &&
+        c.price_per_m2 != null &&
+        c.price_per_m2 > 0
+      );
+    });
+
+    if (usable.length === 0) {
+      heatLayer.setLatLngs([]);
+      updateLegend(null, null);
+      return;
+    }
+
+    var values = usable.map(function (c) {
+      return c.price_per_m2;
+    });
+    var min = Math.min.apply(null, values);
+    var max = Math.max.apply(null, values);
+    var span = max - min || 1; // avoid divide-by-zero when all cells equal
+
+    // Normalise price_per_m2 to [0,1] intensity so the gradient maps colour ->
+    // price/m² (not raw density). A floor of 0.15 keeps the lowest cells visible.
+    var points = usable.map(function (c) {
+      var norm = (c.price_per_m2 - min) / span;
+      var intensity = 0.15 + 0.85 * norm;
+      return [cellLat(c), cellLng(c), intensity];
+    });
+
+    heatLayer.setLatLngs(points);
+    updateLegend(min, max);
+  }
+
   function refresh() {
-    showStatus("Loading listings…");
-    fetchRealEstates()
-      .then(function (result) {
-        renderMarkers(result.records);
-        var shown = result.records.length;
-        if (result.total > shown) {
-          showCapNote(shown, result.total);
-        } else {
-          hideCapNote();
-        }
+    showStatus("Loading…");
+
+    var pointsP = fetchRealEstates().then(function (result) {
+      renderMarkers(result.records);
+      var shown = result.records.length;
+      if (result.total > shown) {
+        showCapNote(shown, result.total);
+      } else {
+        hideCapNote();
+      }
+    });
+
+    var heatP = fetchMapCells()
+      .then(function (cells) {
+        renderHeat(cells);
+      })
+      .catch(function () {
+        // The /real_estates/map endpoint may not be deployed yet (built on a
+        // sibling branch). Degrade gracefully: keep points, clear the heatmap.
+        renderHeat([]);
+      });
+
+    Promise.all([pointsP, heatP])
+      .then(function () {
         hideStatus();
       })
       .catch(function (err) {
-        showStatus("Failed to load listings: " + err.message);
+        showStatus("Failed to load: " + err.message);
       });
   }
 

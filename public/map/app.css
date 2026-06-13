@@ -39,3 +39,41 @@ html, body {
   border-radius: 6px;
   font-size: 12px;
 }
+
+/* Heatmap legend: colours -> price per m2 (issue #30). */
+.legend {
+  background: #fff;
+  padding: 8px 10px;
+  border-radius: 6px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  font-size: 12px;
+  line-height: 1.4;
+  color: #111;
+}
+.legend .legend-title {
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.legend .legend-bar {
+  height: 12px;
+  width: 160px;
+  border-radius: 3px;
+  /* Matches the Leaflet.heat gradient stops below (cold -> hot). */
+  background: linear-gradient(
+    to right,
+    #2b83ba 0%,
+    #abdda4 40%,
+    #ffffbf 60%,
+    #fdae61 80%,
+    #d7191c 100%
+  );
+}
+.legend .legend-scale {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 3px;
+}
+.legend .legend-empty {
+  color: #6b7280;
+  font-style: italic;
+}
