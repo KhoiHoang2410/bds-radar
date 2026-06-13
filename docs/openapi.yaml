@@ -135,6 +135,43 @@ paths:
                       $ref: "#/components/schemas/RealEstate"
                   pagination:
                     $ref: "#/components/schemas/Pagination"
+  /real_estates/map:
+    get:
+      summary: Geo-grid aggregated cells for the price heatmap
+      operationId: mapRealEstates
+      description: >
+        Aggregates matching properties into a geo grid for a heatmap (ADR-0003).
+        Cells are derived ONLY from stored latitude/longitude by rounding to
+        `precision` decimals (default 2 ≈ ~1.1km bins) — no ward polygons,
+        geocoding, or external boundaries. Each cell carries its anchor
+        coordinate (lat/lng = the rounded bin), count, median_price, and
+        price_per_m2 (median of each listing's price/area ratio in the cell).
+        Honours the same ransack q[...] filters as the index (q[type_eq],
+        q[price_gteq]/q[price_lteq], q[area_gteq]/q[area_lteq], q[status_eq],
+        and the bbox q[latitude_gteq]/q[latitude_lteq] +
+        q[longitude_gteq]/q[longitude_lteq]). Defaults to status=active unless
+        q[status_eq] is given.
+      parameters:
+        - $ref: "#/components/parameters/Q"
+        - name: precision
+          in: query
+          description: decimal places to snap lat/lng to (bin size); clamped 0..6, default 2
+          schema: { type: integer, minimum: 0, maximum: 6, default: 2 }
+      responses:
+        "200":
+          description: Aggregated geo-grid cells within the bbox/filters.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cells:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/MapCell"
+                  precision:
+                    type: integer
+                    description: decimal places lat/lng were snapped to
   /real_estates/{id}:
     get:
       summary: Show one property (incl. derived map_url)
@@ -213,6 +250,15 @@ components:
         per_page: { type: integer }
         total_count: { type: integer }
         total_pages: { type: integer }
+    MapCell:
+      type: object
+      description: One geo-grid bin; lat/lng is the rounded bin anchor.
+      properties:
+        lat: { type: number, description: bin anchor latitude (rounded to precision) }
+        lng: { type: number, description: bin anchor longitude (rounded to precision) }
+        count: { type: integer, description: listings in this cell }
+        median_price: { type: integer, nullable: true, description: median price (VND) in the cell }
+        price_per_m2: { type: number, nullable: true, description: median of each listing's price/area (VND/m²) }
     RealEstate:
       type: object
       properties:
