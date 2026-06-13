@@ -16,7 +16,10 @@ module Reports
 
     def initialize(report)
       @report = report
-      @pdf = Prawn::Document.new(page_size: "A4", margin: 40)
+      # The PDF /Title metadata is what the browser shows as the tab title when the
+      # document is viewed inline.
+      @pdf = Prawn::Document.new(page_size: "A4", margin: 40,
+                                 info: { Title: "Report for #{report[:province].name}" })
       install_unicode_font
     end
 

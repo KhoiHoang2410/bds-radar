@@ -27,7 +27,7 @@ module Reports
         <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>Báo cáo bất động sản — #{h(province_name)}</title>
+        <title>Report for #{h(province_name)}</title>
         <script src="#{CHART_CDN}"></script>
         <style>#{styles}</style>
         </head>

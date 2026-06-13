@@ -12,6 +12,7 @@ RSpec.describe Reports::ProvinceReportHtml do
 
     doc = html
     expect(doc).to start_with("<!DOCTYPE html>")
+    expect(doc).to include("<title>Report for Hồ Chí Minh</title>")
     expect(doc).to include("Hồ Chí Minh")
     expect(doc).to include("cdn.jsdelivr.net/npm/chart.js")
     %w[byType byBedrooms avgPrice priceDist].each do |canvas|

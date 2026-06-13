@@ -18,6 +18,16 @@ RSpec.describe "Reports", type: :request do
       expect(response.body[0, 4]).to eq("%PDF")
     end
 
+    it "sets the PDF title (browser tab) to 'Report for <province>'" do
+      province = create(:province, name: "Hanoi")
+
+      get "/provinces/#{province.id}/report.pdf"
+
+      # Prawn stores /Title as a UTF-16BE hex string with a BOM.
+      hex = "feff" + "Report for Hanoi".encode("UTF-16BE").bytes.map { |b| format("%02x", b) }.join
+      expect(response.body).to include("/Title <#{hex}>")
+    end
+
     it "renders even when the province has no listings" do
       empty = create(:province, name: "Hà Nội")
 
