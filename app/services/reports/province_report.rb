@@ -17,6 +17,17 @@ module Reports
       [ "≥ 20 tỷ",    20_000_000_000,  nil ]
     ].freeze
 
+    # [label, lower_bound_inclusive, upper_bound_exclusive] in m²; nil upper = open-ended.
+    # Land has no bedrooms, so it's analysed by lot size instead.
+    AREA_BUCKETS = [
+      [ "< 30 m²",      0,    30 ],
+      [ "30 – 50 m²",   30,   50 ],
+      [ "50 – 70 m²",   50,   70 ],
+      [ "70 – 100 m²",  70,   100 ],
+      [ "100 – 150 m²", 100,  150 ],
+      [ "≥ 150 m²",     150,  nil ]
+    ].freeze
+
     def self.call(province)
       new(province).call
     end
@@ -32,8 +43,9 @@ module Reports
         total_count: @scope.count,
         by_type: by_type,
         by_bedrooms: by_bedrooms,
-        price_per_bedroom: { condo: price_per_bedroom_for("condo"), land: price_per_bedroom_for("land") },
+        price_per_bedroom: { condo: price_per_bedroom_for("condo") },
         land_price_per_m2: land_price_per_m2,
+        land_by_area: land_by_area,
         price_distribution: price_distribution
       }
     end
@@ -80,6 +92,23 @@ module Reports
         avg_price_per_m2: scope.pluck(Arel.sql("AVG(price::numeric / area)")).first&.to_f,
         avg_area: scope.pluck(Arel.sql("AVG(area)")).first&.to_f
       }
+    end
+
+    # Land broken down by lot size (the bedroom-based view doesn't apply to land):
+    # per area bucket, how many lots, their average price, and average price per m².
+    def land_by_area
+      land = @scope.where(type: "land").where("area > 0 AND price IS NOT NULL")
+      AREA_BUCKETS.map do |label, low, high|
+        scope = land.where("area >= ?", low)
+        scope = scope.where("area < ?", high) if high
+        count = scope.count
+        {
+          label: label,
+          count: count,
+          avg_price: count.zero? ? nil : scope.average(:price)&.to_f,
+          avg_price_per_m2: count.zero? ? nil : scope.pluck(Arel.sql("AVG(price::numeric / area)")).first&.to_f
+        }
+      end
     end
 
     # Count of listings whose price falls in each bucket (rows with NULL price excluded).

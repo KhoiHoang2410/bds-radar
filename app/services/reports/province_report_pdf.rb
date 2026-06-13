@@ -25,6 +25,7 @@ module Reports
       summary_section
       price_per_bedroom_section
       land_section
+      land_by_area_section
       price_distribution_section
       @pdf.render
     end
@@ -58,22 +59,32 @@ module Reports
       render_table(data)
     end
 
+    # Only condos are analysed by bedroom count — land is analysed by area
+    # (land_by_area_section), since land listings rarely carry a bedroom count.
     def price_per_bedroom_section
-      { condo: "Căn hộ — giá theo số phòng ngủ", land: "Đất — giá theo số phòng ngủ" }.each do |key, label|
-        rows = @report[:price_per_bedroom][key]
-        section_title(label)
-        if rows.empty?
-          @pdf.text "Không có dữ liệu phòng ngủ.", size: 9, color: "888888"
-          @pdf.move_down 8
-          next
-        end
-
-        data = [ [ "Phòng ngủ", "Số lượng", "Giá TB", "Giá / phòng ngủ" ] ]
-        rows.each do |row|
-          data << [ row[:bedrooms].to_s, row[:count].to_s, money(row[:avg_price]), money(row[:avg_price_per_bedroom]) ]
-        end
-        render_table(data)
+      rows = @report[:price_per_bedroom][:condo]
+      section_title("Căn hộ — giá theo số phòng ngủ")
+      if rows.empty?
+        @pdf.text "Không có dữ liệu phòng ngủ.", size: 9, color: "888888"
+        @pdf.move_down 8
+        return
       end
+
+      data = [ [ "Phòng ngủ", "Số lượng", "Giá TB", "Giá / phòng ngủ" ] ]
+      rows.each do |row|
+        data << [ row[:bedrooms].to_s, row[:count].to_s, money(row[:avg_price]), money(row[:avg_price_per_bedroom]) ]
+      end
+      render_table(data)
+    end
+
+    # Land broken down by lot size: per area bucket, count, average price, and price/m².
+    def land_by_area_section
+      section_title("Đất — phân tích theo diện tích")
+      data = [ [ "Khoảng diện tích", "Số tin", "Giá TB", "Giá / m²" ] ]
+      @report[:land_by_area].each do |row|
+        data << [ row[:label], row[:count].to_s, money(row[:avg_price]), price_per_m2(row[:avg_price_per_m2]) ]
+      end
+      render_table(data)
     end
 
     def land_section

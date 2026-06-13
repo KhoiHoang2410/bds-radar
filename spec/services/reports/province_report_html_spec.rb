@@ -14,9 +14,21 @@ RSpec.describe Reports::ProvinceReportHtml do
     expect(doc).to start_with("<!DOCTYPE html>")
     expect(doc).to include("Hồ Chí Minh")
     expect(doc).to include("cdn.jsdelivr.net/npm/chart.js")
-    %w[byType byBedrooms avgPrice priceDist].each do |canvas|
+    %w[byType byBedrooms avgPrice priceDist landByArea].each do |canvas|
       expect(doc).to include(%(id="#{canvas}"))
     end
+  end
+
+  it "renders the land area-bucket table and its labels" do
+    create(:real_estate, crawl_province: hcm, type: "land", bedrooms: nil, price: 2_000_000_000, area: 40.0)
+
+    doc = html
+    expect(doc).to include("Đất — phân tích theo diện tích")
+    expect(doc).to include("< 30 m²")
+    expect(doc).to include("30 – 50 m²")
+    expect(doc).to include("≥ 150 m²")
+    # land is no longer analysed by bedroom
+    expect(doc).not_to include("Đất — giá theo số phòng ngủ")
   end
 
   it "embeds the aggregated figures as JSON for the charts" do

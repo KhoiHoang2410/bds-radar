@@ -39,6 +39,7 @@ module Reports
           #{by_type_table}
           #{price_per_bedroom_tables}
           #{land_section}
+          #{land_by_area_table}
         </div>
         <script>#{chart_script}</script>
         </body>
@@ -89,6 +90,7 @@ module Reports
           <div class="chart-box"><h2>Số tin theo số phòng ngủ</h2><canvas id="byBedrooms"></canvas></div>
           <div class="chart-box"><h2>Giá trung bình theo loại hình (tỷ)</h2><canvas id="avgPrice"></canvas></div>
           <div class="chart-box"><h2>Phân bố theo khoảng giá</h2><canvas id="priceDist"></canvas></div>
+          <div class="chart-box"><h2>Đất — giá/m² theo diện tích (triệu)</h2><canvas id="landByArea"></canvas></div>
         </section>
       HTML
     end
@@ -101,14 +103,23 @@ module Reports
       table("Tổng quan theo loại hình", header_row, rows, empty: "Không có dữ liệu.")
     end
 
+    # Only condos are analysed by bedroom count — land is analysed by area (see
+    # land_by_area_table), since land listings rarely carry a bedroom count.
     def price_per_bedroom_tables
-      { condo: "Căn hộ — giá theo số phòng ngủ", land: "Đất — giá theo số phòng ngủ" }.map do |key, title|
-        rows = @report[:price_per_bedroom][key].map do |row|
-          [ row[:bedrooms].to_s, row[:count].to_s, money(row[:avg_price]), money(row[:avg_price_per_bedroom]) ]
-        end
-        table(title, [ "Phòng ngủ", "Số lượng", "Giá TB", "Giá / phòng ngủ" ], rows,
-              empty: "Không có dữ liệu phòng ngủ.")
-      end.join
+      rows = @report[:price_per_bedroom][:condo].map do |row|
+        [ row[:bedrooms].to_s, row[:count].to_s, money(row[:avg_price]), money(row[:avg_price_per_bedroom]) ]
+      end
+      table("Căn hộ — giá theo số phòng ngủ", [ "Phòng ngủ", "Số lượng", "Giá TB", "Giá / phòng ngủ" ], rows,
+            empty: "Không có dữ liệu phòng ngủ.")
+    end
+
+    # Land broken down by lot size: per area bucket, count, average price, and price/m².
+    def land_by_area_table
+      header_row = [ "Khoảng diện tích", "Số tin", "Giá TB", "Giá / m²" ]
+      rows = @report[:land_by_area].map do |row|
+        [ row[:label], row[:count].to_s, money(row[:avg_price]), price_per_m2(row[:avg_price_per_m2]) ]
+      end
+      table("Đất — phân tích theo diện tích", header_row, rows, empty: "Không có tin đất.")
     end
 
     def land_section
@@ -155,6 +166,10 @@ module Reports
         priceDistribution: {
           labels: @report[:price_distribution].map { |r| r[:label] },
           counts: @report[:price_distribution].map { |r| r[:count] }
+        },
+        landByArea: {
+          labels: @report[:land_by_area].map { |r| r[:label] },
+          pricePerM2: @report[:land_by_area].map { |r| r[:avg_price_per_m2] ? (r[:avg_price_per_m2] / MILLION).round(1) : 0 }
         }
       }
     end
@@ -187,6 +202,12 @@ module Reports
           type: "bar",
           data: { labels: DATA.priceDistribution.labels,
                   datasets: [{ label: "Số tin", data: DATA.priceDistribution.counts, backgroundColor: "#f59e0b" }] },
+          options: noLegend
+        });
+        new Chart(document.getElementById("landByArea"), {
+          type: "bar",
+          data: { labels: DATA.landByArea.labels,
+                  datasets: [{ label: "Giá/m² (triệu)", data: DATA.landByArea.pricePerM2, backgroundColor: "#7c3aed" }] },
           options: noLegend
         });
       JS
