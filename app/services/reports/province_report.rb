@@ -44,7 +44,7 @@ module Reports
         by_type: by_type,
         by_bedrooms: by_bedrooms,
         price_per_bedroom: { condo: price_per_bedroom_for("condo") },
-        land_by_ward_area: land_by_ward_area,
+        land_by_district_ward: land_by_district_ward,
         price_distribution: price_distribution
       }
     end
@@ -92,34 +92,45 @@ module Reports
       END
     SQL
 
-    # Land broken down by ward, then by lot size (land has no bedrooms). One row per
-    # ward that has land listings, each carrying the full AREA_BUCKETS breakdown
-    # (count, average price, average price/m²). Wards are ordered by listing count desc.
-    # Computed in a single grouped query (ward × bucket) to avoid N+1 over wards.
-    def land_by_ward_area
+    # Land broken down by district_or_city → ward → lot size (land has no bedrooms).
+    # The administrative path is province → district_or_city (e.g. "Thành phố Nha
+    # Trang") → ward, so a city like Nha Trang is a district here, not a ward. Each
+    # ward carries the full AREA_BUCKETS breakdown (count, avg price, avg price/m²).
+    # Districts and wards are each ordered by listing count desc. Computed in a single
+    # grouped query (district × ward × bucket) to avoid N+1.
+    def land_by_district_ward
       rows = @scope.where(type: "land").where("area > 0 AND price IS NOT NULL")
-                   .group(:ward, AREA_BUCKET_CASE)
-                   .pluck(:ward, AREA_BUCKET_CASE, Arel.sql("COUNT(*)"),
+                   .group(:district_or_city, :ward, AREA_BUCKET_CASE)
+                   .pluck(:district_or_city, :ward, AREA_BUCKET_CASE, Arel.sql("COUNT(*)"),
                           Arel.sql("AVG(price)"), Arel.sql("AVG(price::numeric / area)"))
 
-      by_ward = Hash.new { |h, k| h[k] = {} }
-      rows.each do |ward, bucket_index, count, avg_price, avg_per_m2|
-        by_ward[ward][bucket_index] =
+      nested = Hash.new { |h, k| h[k] = Hash.new { |g, w| g[w] = {} } }
+      rows.each do |district, ward, bucket_index, count, avg_price, avg_per_m2|
+        nested[district][ward][bucket_index] =
           { count: count, avg_price: avg_price&.to_f, avg_price_per_m2: avg_per_m2&.to_f }
       end
 
-      by_ward.map do |ward, cells|
-        buckets = AREA_BUCKETS.each_index.map do |i|
-          cell = cells[i]
-          {
-            label: AREA_BUCKETS[i][0],
-            count: cell ? cell[:count] : 0,
-            avg_price: cell && cell[:avg_price],
-            avg_price_per_m2: cell && cell[:avg_price_per_m2]
-          }
-        end
-        { ward: ward, count: buckets.sum { |b| b[:count] }, buckets: buckets }
-      end.sort_by { |row| [ -row[:count], row[:ward].to_s ] }
+      nested.map do |district, wards_cells|
+        wards = wards_cells.map do |ward, cells|
+          buckets = area_buckets_from(cells)
+          { ward: ward, count: buckets.sum { |b| b[:count] }, buckets: buckets }
+        end.sort_by { |w| [ -w[:count], w[:ward].to_s ] }
+        { district: district, count: wards.sum { |w| w[:count] }, wards: wards }
+      end.sort_by { |d| [ -d[:count], d[:district].to_s ] }
+    end
+
+    # Turns a {bucket_index => cell} hash into the full ordered AREA_BUCKETS list,
+    # filling absent buckets with a zero count.
+    def area_buckets_from(cells)
+      AREA_BUCKETS.each_index.map do |i|
+        cell = cells[i]
+        {
+          label: AREA_BUCKETS[i][0],
+          count: cell ? cell[:count] : 0,
+          avg_price: cell && cell[:avg_price],
+          avg_price_per_m2: cell && cell[:avg_price_per_m2]
+        }
+      end
     end
 
     # Count of listings whose price falls in each bucket (rows with NULL price excluded).

@@ -47,22 +47,29 @@ RSpec.describe Reports::ProvinceReport do
     expect(two).to include(count: 2, avg_price: 5_000_000_000.0, avg_price_per_bedroom: 2_500_000_000.0)
   end
 
-  it "analyses land by ward, each ward broken into area buckets (not by bedroom)" do
-    create(:real_estate, crawl_province: hcm, type: "land", ward: "Phường 1", price: 1_000_000_000, area: 25.0)   # P1 < 30
-    create(:real_estate, crawl_province: hcm, type: "land", ward: "Phường 1", price: 2_000_000_000, area: 40.0)   # P1 30–50
-    create(:real_estate, crawl_province: hcm, type: "land", ward: "Phường 1", price: 4_000_000_000, area: 40.0)   # P1 30–50
-    create(:real_estate, crawl_province: hcm, type: "land", ward: "Phường 2", price: 9_000_000_000, area: 200.0)  # P2 ≥ 150
-    create(:real_estate, crawl_province: hcm, type: "condo", bedrooms: 2, ward: "Phường 1", price: 5_000_000_000, area: 40.0) # not land
+  it "analyses land by district → ward → area buckets (not by bedroom)" do
+    nt = "Thành phố Nha Trang"
+    dk = "Huyện Diên Khánh"
+    create(:real_estate, crawl_province: hcm, type: "land", district_or_city: nt, ward: "Phường 1", price: 1_000_000_000, area: 25.0)   # < 30
+    create(:real_estate, crawl_province: hcm, type: "land", district_or_city: nt, ward: "Phường 1", price: 2_000_000_000, area: 40.0)   # 30–50
+    create(:real_estate, crawl_province: hcm, type: "land", district_or_city: nt, ward: "Phường 1", price: 4_000_000_000, area: 40.0)   # 30–50
+    create(:real_estate, crawl_province: hcm, type: "land", district_or_city: nt, ward: "Phường 2", price: 9_000_000_000, area: 200.0)  # ≥ 150
+    create(:real_estate, crawl_province: hcm, type: "land", district_or_city: dk, ward: "Xã A", price: 3_000_000_000, area: 60.0)       # 50–70
+    create(:real_estate, crawl_province: hcm, type: "condo", bedrooms: 2, district_or_city: nt, ward: "Phường 1", price: 5_000_000_000, area: 40.0) # not land
 
-    wards = report[:land_by_ward_area]
+    districts = report[:land_by_district_ward]
 
     # land has no bedroom-based analysis anymore
     expect(report[:price_per_bedroom]).not_to have_key(:land)
 
-    # wards ordered by listing count desc: Phường 1 (3) before Phường 2 (1)
-    expect(wards.map { |w| w[:ward] }).to eq([ "Phường 1", "Phường 2" ])
+    # districts ordered by count desc: Nha Trang (4) before Diên Khánh (1)
+    expect(districts.map { |d| d[:district] }).to eq([ nt, dk ])
+    nha_trang = districts.first
+    expect(nha_trang[:count]).to eq(4)
+    # wards ordered by count desc: Phường 1 (3) before Phường 2 (1)
+    expect(nha_trang[:wards].map { |w| w[:ward] }).to eq([ "Phường 1", "Phường 2" ])
 
-    p1 = wards.first
+    p1 = nha_trang[:wards].first
     expect(p1[:count]).to eq(3)
     buckets = p1[:buckets].to_h { |b| [ b[:label], b ] }
     expect(buckets["< 30 m²"][:count]).to eq(1)
@@ -73,13 +80,13 @@ RSpec.describe Reports::ProvinceReport do
     expect(buckets["50 – 70 m²"][:count]).to eq(0)
     expect(buckets["50 – 70 m²"][:avg_price]).to be_nil
 
-    expect(wards.last[:buckets].find { |b| b[:label] == "≥ 150 m²" }[:count]).to eq(1)
+    expect(nha_trang[:wards].last[:buckets].find { |b| b[:label] == "≥ 150 m²" }[:count]).to eq(1)
   end
 
-  it "returns no ward rows when the province has no land" do
+  it "returns no land district rows when the province has no land" do
     create(:real_estate, crawl_province: hcm, type: "condo", bedrooms: 2, price: 5_000_000_000, area: 40.0)
 
-    expect(report[:land_by_ward_area]).to be_empty
+    expect(report[:land_by_district_ward]).to be_empty
   end
 
   it "buckets listings into price ranges" do
