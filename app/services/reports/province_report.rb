@@ -31,6 +31,7 @@ module Reports
         province: @province,
         total_count: @scope.count,
         by_type: by_type,
+        by_bedrooms: by_bedrooms,
         price_per_bedroom: { condo: price_per_bedroom_for("condo"), land: price_per_bedroom_for("land") },
         land_price_per_m2: land_price_per_m2,
         price_distribution: price_distribution
@@ -38,6 +39,16 @@ module Reports
     end
 
     private
+
+    # Per bedroom count (across all types): how many, and average price. Rows with no
+    # bedroom count (e.g. land) are excluded — they're covered by price/m² instead.
+    def by_bedrooms
+      rows = @scope.where.not(bedrooms: nil).group(:bedrooms)
+                   .pluck(:bedrooms, Arel.sql("COUNT(*)"), Arel.sql("AVG(price)"))
+      rows.map do |bedrooms, count, avg_price|
+        { bedrooms: bedrooms, count: count, avg_price: avg_price&.to_f }
+      end.sort_by { |row| row[:bedrooms] }
+    end
 
     # Per property type: how many, average price, average area.
     def by_type

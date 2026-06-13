@@ -156,18 +156,26 @@ paths:
                 $ref: "#/components/schemas/Errors"
   /provinces/{province_id}/report:
     get:
-      summary: Province real-estate analytics report (PDF)
+      summary: Province real-estate analytics report (HTML or PDF)
       operationId: showProvinceReport
       description: >
-        Renders a PDF over the province's active listings: count/avg-price/avg-area
-        by type, condo & land average price per bedroom, land price per m², and a
-        listing count distribution across price buckets.
+        A report over the province's active listings: count/avg-price/avg-area by
+        type, listing count by bedroom, condo & land average price per bedroom, land
+        price per m², and a listing count distribution across price buckets. Default
+        is HTML (interactive Chart.js charts); request `report.pdf` for the PDF.
       parameters:
         - { name: province_id, in: path, required: true, schema: { type: integer } }
+        - name: format
+          in: path
+          required: false
+          description: "Response format: html (default) or pdf."
+          schema: { type: string, enum: [ html, pdf ] }
       responses:
         "200":
-          description: The report as a PDF document.
+          description: The report as an HTML page or a PDF document.
           content:
+            text/html:
+              schema: { type: string }
             application/pdf:
               schema: { type: string, format: binary }
         "404":

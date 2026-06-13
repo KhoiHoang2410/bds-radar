@@ -1,5 +1,8 @@
 class ApplicationController < ActionController::API
   include Pagy::Backend
+  # API-only controllers don't ship respond_to/respond_with; the reports endpoint
+  # negotiates HTML vs PDF, so opt the format-negotiation DSL back in.
+  include ActionController::MimeResponds
 
   rescue_from ActiveRecord::RecordNotFound, with: :render_not_found
 
