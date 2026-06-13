@@ -21,7 +21,7 @@ class RealEstate < ApplicationRecord
   # district raw, type/status, price/area ranges, and lat/lng (bbox = *_gteq/_lteq).
   def self.ransackable_attributes(_auth = nil)
     %w[province_id ward_id district_or_city type status price area latitude longitude
-       bedrooms bathrooms posted_at]
+       bedrooms bathrooms posted_at project_name project_external_id]
   end
 
   def self.ransackable_associations(_auth = nil)

@@ -6,7 +6,8 @@ module Suppliers
     :supplier, :external_id, :source_url, :type, :price, :area,
     :address, :province, :district_or_city, :ward, :street,
     :image_urls, :latitude, :longitude,
-    :bedrooms, :bathrooms, :posted_at, :title, :raw_data,
+    :bedrooms, :bathrooms, :posted_at, :title,
+    :project_name, :project_external_id, :raw_data,
     keyword_init: true
   ) do
     # Parsed columns for upsert (province_id / status / last_seen_at set by the job).
@@ -28,6 +29,8 @@ module Suppliers
         bathrooms: bathrooms,
         posted_at: posted_at,
         title: title,
+        project_name: project_name,
+        project_external_id: project_external_id,
         raw_data: raw_data
       }
     end

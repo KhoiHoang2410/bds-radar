@@ -31,6 +31,8 @@ module Normalize
         bathrooms: source.bathrooms,
         posted_at: source.posted_at,
         title: source.title,
+        project_name: source.project_name,                # condo project (nullable, nhatot-only)
+        project_external_id: source.project_external_id,
         real_estate_source_id: source.id,
         ward_id: WardMatcher.call(ward: source.ward, province_id: source.province_id)
       }

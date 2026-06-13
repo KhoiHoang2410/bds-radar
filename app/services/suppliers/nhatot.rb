@@ -49,6 +49,8 @@ module Suppliers
         bathrooms: raw["toilets"],
         posted_at: post_time(raw["list_time"]),
         title: raw["subject"],
+        project_name: raw["pty_project_name"].presence,         # condo/building name (partial coverage)
+        project_external_id: raw["project_oid"].presence&.to_s,  # stable project id (groups units)
         raw_data: raw
       )
     end

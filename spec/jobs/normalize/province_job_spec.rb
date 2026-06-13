@@ -36,6 +36,19 @@ RSpec.describe Normalize::ProvinceJob do
     expect(re).to have_attributes(bedrooms: 3, bathrooms: 2, posted_at: posted, title: "Bán căn hộ 3PN")
   end
 
+  it "promotes the condo project name + id (nullable)" do
+    condo = create(:real_estate_source, crawl_province: hcm, type: "condo",
+                                        project_name: "Akari City", project_external_id: "12345")
+    plain = create(:real_estate_source, crawl_province: hcm, project_name: nil, project_external_id: nil)
+
+    run
+
+    expect(RealEstate.find_by(real_estate_source_id: condo.id))
+      .to have_attributes(project_name: "Akari City", project_external_id: "12345")
+    expect(RealEstate.find_by(real_estate_source_id: plain.id))
+      .to have_attributes(project_name: nil, project_external_id: nil)
+  end
+
   it "resolves ward_id when the matcher finds one, leaves it nil otherwise" do
     w = create(:ward, ward: "Phường Bến Nghé", province: hcm)
     matched = create(:real_estate_source, crawl_province: hcm, ward: "Phường Bến Nghé")
