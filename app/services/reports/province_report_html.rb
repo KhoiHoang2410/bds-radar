@@ -12,12 +12,15 @@ module Reports
     MILLION = 1_000_000.0
     CHART_CDN = "https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js".freeze
 
-    def self.call(report)
-      new(report).render
+    # `provinces` is the list shown in the report's province switcher — typically the
+    # scheduled provinces. Empty (the default) renders no switcher.
+    def self.call(report, provinces: [])
+      new(report, provinces: provinces).render
     end
 
-    def initialize(report)
+    def initialize(report, provinces: [])
       @report = report
+      @provinces = provinces
     end
 
     def render
@@ -58,7 +61,28 @@ module Reports
         <header>
           <h1>Báo cáo bất động sản</h1>
           <p class="province">#{h(province_name)}</p>
+          #{province_selector}
         </header>
+      HTML
+    end
+
+    # A dropdown to switch the report to another province; selecting one navigates to
+    # that province's report. Populated with the provinces passed in (the scheduled
+    # ones). Rendered only when a list is supplied. The current province is preselected.
+    def province_selector
+      return "" if @provinces.empty?
+
+      current_id = @report[:province].id
+      options = @provinces.map do |province|
+        selected = province.id == current_id ? " selected" : ""
+        %(<option value="#{province.id}"#{selected}>#{h(province.name)}</option>)
+      end.join
+
+      <<~HTML
+        <div class="province-switch">
+          <label for="provinceSelect">Đổi tỉnh / thành phố</label>
+          <select id="provinceSelect" onchange="location.href='/provinces/' + this.value + '/report.html'">#{options}</select>
+        </div>
       HTML
     end
 
@@ -220,6 +244,11 @@ module Reports
         .wrap { max-width: 1080px; margin: 0 auto; padding: 32px 20px 64px; }
         header h1 { margin: 0; font-size: 26px; }
         header .province { margin: 4px 0 0; font-size: 16px; color: #6b7280; }
+        .province-switch { display: flex; align-items: center; gap: 10px; margin-top: 14px;
+                           flex-wrap: wrap; }
+        .province-switch label { font-size: 13px; color: #6b7280; }
+        .province-switch select { font: inherit; padding: 8px 10px; border: 1px solid #d1d5db;
+                                  border-radius: 8px; background: #fff; max-width: 100%; }
         .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
                  gap: 16px; margin: 28px 0; }
         .card { background: #fff; border-radius: 12px; padding: 18px 20px;
