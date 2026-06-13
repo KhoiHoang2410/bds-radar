@@ -1,15 +1,24 @@
 /*
- * BDS Radar — map client.
+ * BDS Radar — map client (issues #28, #30, #31, #32).
  *
  * A static Leaflet client (ADR-0003) that renders live RealEstate inventory.
  * - Base tiles: OpenStreetMap raster, with the mandatory "© OpenStreetMap
  *   contributors" attribution always visible.
  * - Points layer (issue #28): on load and on every pan/zoom (moveend) it derives
  *   the viewport bbox and queries GET /real_estates with the bbox ransack params,
- *   dropping one marker per result. Default status=active is respected.
+ *   dropping one marker per result. Default status=active is respected. The index
+ *   caps per_page at 100; we page through up to MAX_PAGES and, if the viewport
+ *   still holds more than we drew, show a visible cap note so data is never
+ *   silently dropped.
  * - Price heatmap layer (issue #30): overlays geo-grid aggregation cells from
  *   GET /real_estates/map, colour-graded by price_per_m2, with a visible legend.
  *   Points + heatmap coexist behind a Leaflet layer control.
+ * - Filter controls (issue #31): type / price / area drive both the points and
+ *   heatmap queries via q[...] ransack params, composed with the bbox.
+ * - Listing popup (issue #32): clicking a marker shows price, area, type, condo
+ *   project, the derived Google Maps link (map_url) and the source URL — all from
+ *   the existing /real_estates payload. Thumbnails (image_urls) are OPT-IN and
+ *   OFF by default; enabling them is the only added external (image CDN) call.
  */
 (function () {
   "use strict";
@@ -73,6 +82,25 @@
       { collapsed: false }
     )
     .addTo(map);
+
+  // Thumbnails are OPT-IN and OFF by default (ADR-0003): they hot-link supplier
+  // image CDNs, the only added external call beyond OSM tiles.
+  var thumbnailsEnabled = false;
+  var thumbToggle = L.control({ position: "topright" });
+  thumbToggle.onAdd = function () {
+    var div = L.DomUtil.create("div", "thumb-toggle");
+    div.innerHTML =
+      '<label><input type="checkbox" id="thumb-checkbox" /> ' +
+      "Show thumbnails</label>";
+    L.DomEvent.disableClickPropagation(div);
+    return div;
+  };
+  thumbToggle.addTo(map);
+  document
+    .getElementById("thumb-checkbox")
+    .addEventListener("change", function (e) {
+      thumbnailsEnabled = e.target.checked;
+    });
 
   var statusEl = document.getElementById("status");
   var capNoteEl = document.getElementById("cap-note");
@@ -285,6 +313,88 @@
     return fetchPage(1);
   }
 
+  // --- Popups (issue #32) ---------------------------------------------------
+
+  function escapeHtml(value) {
+    if (value == null) return "";
+    return String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  // price is stored in VND; show it as triệu (millions) for readability.
+  function formatPrice(price) {
+    if (price == null) return "—";
+    return (price / 1e6).toLocaleString("vi-VN", { maximumFractionDigits: 1 }) +
+      " triệu";
+  }
+
+  // source_urls may be a single string or an array; normalise to an array.
+  function sourceUrlList(re) {
+    var raw = re.source_urls;
+    if (!raw) return [];
+    return Array.isArray(raw) ? raw : [raw];
+  }
+
+  function firstImageUrl(re) {
+    var imgs = re.image_urls;
+    if (!imgs) return null;
+    if (Array.isArray(imgs)) return imgs.length ? imgs[0] : null;
+    return imgs;
+  }
+
+  // Build popup HTML from the existing /real_estates payload only (no new call).
+  // Thumbnails are included only when the opt-in toggle is on.
+  function buildPopupHtml(re) {
+    var parts = ['<div class="re-popup">'];
+
+    parts.push('<div class="re-type">' + escapeHtml(re.type || "listing") + "</div>");
+    if (re.project_name) {
+      parts.push('<div class="re-project">' + escapeHtml(re.project_name) + "</div>");
+    }
+    parts.push('<div class="re-price">' + escapeHtml(formatPrice(re.price)) + "</div>");
+
+    var areaText = re.area != null ? escapeHtml(re.area) + " m²" : "— m²";
+    parts.push("<div>Area: " + areaText + "</div>");
+
+    parts.push('<div class="re-links">');
+    if (re.map_url) {
+      parts.push(
+        '<a href="' +
+          escapeHtml(re.map_url) +
+          '" target="_blank" rel="noopener noreferrer">Google Maps</a>'
+      );
+    }
+    sourceUrlList(re).forEach(function (url, i) {
+      parts.push(
+        '<a href="' +
+          escapeHtml(url) +
+          '" target="_blank" rel="noopener noreferrer">Source' +
+          (i > 0 ? " " + (i + 1) : "") +
+          "</a>"
+      );
+    });
+    parts.push("</div>");
+
+    // Opt-in thumbnail (hot-links a supplier image CDN); off by default.
+    if (thumbnailsEnabled) {
+      var img = firstImageUrl(re);
+      if (img) {
+        parts.push(
+          '<img class="re-thumb" src="' +
+            escapeHtml(img) +
+            '" alt="listing photo" loading="lazy" />'
+        );
+      }
+    }
+
+    parts.push("</div>");
+    return parts.join("");
+  }
+
   // Fetch geo-grid aggregation cells for the viewport from GET /real_estates/map.
   // The exact response envelope is being finalised on another branch, so we
   // unwrap defensively: a bare array, { cells }, { map_cells }, or { data }.
@@ -309,7 +419,12 @@
     markersLayer.clearLayers();
     records.forEach(function (re) {
       if (re.latitude == null || re.longitude == null) return;
-      L.marker([re.latitude, re.longitude]).addTo(markersLayer);
+      var marker = L.marker([re.latitude, re.longitude]);
+      // Content as a function so each open reflects the current thumbnail toggle.
+      marker.bindPopup(function () {
+        return buildPopupHtml(re);
+      });
+      marker.addTo(markersLayer);
     });
   }
 
