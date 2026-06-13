@@ -34,11 +34,36 @@ module Reports
         by_bedrooms: by_bedrooms,
         price_per_bedroom: { condo: price_per_bedroom_for("condo"), land: price_per_bedroom_for("land") },
         land_price_per_m2: land_price_per_m2,
-        price_distribution: price_distribution
+        price_distribution: price_distribution,
+        condo_by_project: condo_by_project
       }
     end
 
     private
+
+    # Condos grouped by project_name (rows with a blank project excluded). Per project:
+    # how many active condos, the average price of its 1- and 2-bedroom units, and the
+    # average price per m². The HTML report exposes these behind a project dropdown.
+    def condo_by_project
+      rows = @scope.where(type: "condo").where.not(project_name: [ nil, "" ])
+                   .group(:project_name)
+                   .pluck(
+                     :project_name,
+                     Arel.sql("COUNT(*)"),
+                     Arel.sql("AVG(price) FILTER (WHERE bedrooms = 1)"),
+                     Arel.sql("AVG(price) FILTER (WHERE bedrooms = 2)"),
+                     Arel.sql("AVG(price::numeric / area) FILTER (WHERE area > 0)")
+                   )
+      rows.map do |name, count, avg_1bed, avg_2bed, avg_per_m2|
+        {
+          project_name: name,
+          count: count,
+          avg_price_1bed: avg_1bed&.to_f,
+          avg_price_2bed: avg_2bed&.to_f,
+          avg_price_per_m2: avg_per_m2&.to_f
+        }
+      end.sort_by { |row| [ -row[:count], row[:project_name] ] }
+    end
 
     # Per bedroom count (across all types): how many, and average price. Rows with no
     # bedroom count (e.g. land) are excluded — they're covered by price/m² instead.

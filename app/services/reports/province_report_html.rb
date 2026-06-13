@@ -36,6 +36,7 @@ module Reports
           #{header}
           #{stat_cards}
           #{charts_grid}
+          #{condo_by_project_section}
           #{by_type_table}
           #{price_per_bedroom_tables}
           #{land_section}
@@ -89,6 +90,29 @@ module Reports
           <div class="chart-box"><h2>Số tin theo số phòng ngủ</h2><canvas id="byBedrooms"></canvas></div>
           <div class="chart-box"><h2>Giá trung bình theo loại hình (tỷ)</h2><canvas id="avgPrice"></canvas></div>
           <div class="chart-box"><h2>Phân bố theo khoảng giá</h2><canvas id="priceDist"></canvas></div>
+        </section>
+      HTML
+    end
+
+    # Condo analysis grouped by project, driven by a project-name dropdown. The select
+    # is rendered server-side (escaped); the detail cards are filled client-side from
+    # the embedded JSON when a project is chosen. Falls back to an empty-state note.
+    def condo_by_project_section
+      projects = @report[:condo_by_project]
+      return %(<section class="block"><h2>Căn hộ theo dự án</h2><p class="empty">Không có dữ liệu căn hộ theo dự án.</p></section>) if projects.empty?
+
+      options = projects.map.with_index do |row, i|
+        %(<option value="#{i}">#{h(row[:project_name])} (#{row[:count]})</option>)
+      end.join
+
+      <<~HTML
+        <section class="block">
+          <h2>Căn hộ theo dự án</h2>
+          <div class="project-picker">
+            <label for="projectSelect">Chọn dự án</label>
+            <select id="projectSelect">#{options}</select>
+          </div>
+          <div id="projectDetail" class="project-detail"></div>
         </section>
       HTML
     end
@@ -155,13 +179,29 @@ module Reports
         priceDistribution: {
           labels: @report[:price_distribution].map { |r| r[:label] },
           counts: @report[:price_distribution].map { |r| r[:count] }
-        }
+        },
+        condoByProject: @report[:condo_by_project].map do |r|
+          {
+            name: r[:project_name],
+            count: r[:count],
+            avg1: r[:avg_price_1bed],
+            avg2: r[:avg_price_2bed],
+            ppm2: r[:avg_price_per_m2]
+          }
+        end
       }
+    end
+
+    # JSON embedded inside a <script> element: escape the HTML-significant characters
+    # to their \\uXXXX form so free-text values (e.g. a project name) can't break out of
+    # the script with </script> or be interpreted as markup. Stays valid JSON.
+    def embed_json(data)
+      JSON.generate(data).gsub("<", "\\u003c").gsub(">", "\\u003e").gsub("&", "\\u0026")
     end
 
     def chart_script
       <<~JS
-        const DATA = #{JSON.generate(chart_data)};
+        const DATA = #{embed_json(chart_data)};
         const PALETTE = ["#2563eb","#16a34a","#f59e0b","#dc2626","#7c3aed","#0891b2","#db2777"];
         const palette = n => Array.from({length: n}, (_, i) => PALETTE[i % PALETTE.length]);
         const noLegend = { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } };
@@ -189,6 +229,38 @@ module Reports
                   datasets: [{ label: "Số tin", data: DATA.priceDistribution.counts, backgroundColor: "#f59e0b" }] },
           options: noLegend
         });
+
+        // Condo-by-project: the dropdown picks a project; the cards below show its figures.
+        (function () {
+          const select = document.getElementById("projectSelect");
+          const detail = document.getElementById("projectDetail");
+          if (!select || !detail) return;
+
+          const ty = v => v == null ? "—" : (v / 1e9).toFixed(2) + " tỷ";
+          const ppm2 = v => v == null ? "—" : (v / 1e6).toFixed(1) + " triệu/m²";
+          const esc = s => { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; };
+
+          function card(value, label) {
+            return '<div class="card"><div class="card-value">' + value +
+                   '</div><div class="card-label">' + label + '</div></div>';
+          }
+
+          function render(i) {
+            const p = DATA.condoByProject[i];
+            if (!p) { detail.innerHTML = ""; return; }
+            detail.innerHTML =
+              '<p class="project-name">' + esc(p.name) + '</p>' +
+              '<div class="cards">' +
+                card(p.count, "Số căn hộ đang bán") +
+                card(ty(p.avg1), "Giá TB căn 1 phòng ngủ") +
+                card(ty(p.avg2), "Giá TB căn 2 phòng ngủ") +
+                card(ppm2(p.ppm2), "Giá / m² (TB)") +
+              '</div>';
+          }
+
+          select.addEventListener("change", e => render(Number(e.target.value)));
+          render(0);
+        })();
       JS
     end
 
@@ -218,6 +290,12 @@ module Reports
         th { background: #f9fafb; font-weight: 600; }
         tbody tr:last-child td { border-bottom: none; }
         .empty { color: #9ca3af; font-size: 13px; margin: 0; }
+        .project-picker { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .project-picker label { font-size: 13px; color: #6b7280; }
+        .project-picker select { font: inherit; padding: 8px 10px; border: 1px solid #d1d5db;
+                                 border-radius: 8px; background: #fff; max-width: 100%; }
+        .project-detail .project-name { margin: 16px 0 0; font-size: 16px; font-weight: 600; }
+        .project-detail .cards { margin: 12px 0 0; }
       CSS
     end
 

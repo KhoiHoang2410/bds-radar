@@ -33,6 +33,36 @@ RSpec.describe Reports::ProvinceReportHtml do
     expect(payload["priceDistribution"]["counts"].sum).to eq(3)
   end
 
+  it "renders a project dropdown and embeds the condo-by-project figures" do
+    create(:real_estate, crawl_province: hcm, type: "condo", project_name: "Vinhomes", bedrooms: 1, price: 2_000_000_000, area: 40.0)
+    create(:real_estate, crawl_province: hcm, type: "condo", project_name: "Vinhomes", bedrooms: 2, price: 4_000_000_000, area: 50.0)
+
+    doc = html
+    expect(doc).to include(%(id="projectSelect"))
+    expect(doc).to include(%(id="projectDetail"))
+    expect(doc).to include("Vinhomes")
+
+    payload = JSON.parse(doc[/const DATA = (\{.*?\});/m, 1])
+    vin = payload["condoByProject"].find { |r| r["name"] == "Vinhomes" }
+    expect(vin["count"]).to eq(2)
+    expect(vin["avg1"]).to eq(2_000_000_000.0)
+    expect(vin["avg2"]).to eq(4_000_000_000.0)
+  end
+
+  it "shows an empty-state note when no condo has a project name" do
+    create(:real_estate, crawl_province: hcm, type: "condo", project_name: nil, bedrooms: 2)
+
+    expect(html).to include("Không có dữ liệu căn hộ theo dự án.")
+  end
+
+  it "escapes a malicious project name in the dropdown options" do
+    create(:real_estate, crawl_province: hcm, type: "condo", project_name: "<img src=x>", bedrooms: 1)
+
+    doc = html
+    expect(doc).not_to include("<img src=x>")
+    expect(doc).to include("&lt;img src=x&gt;")
+  end
+
   it "escapes the province name to prevent HTML injection" do
     evil = create(:province, name: "<script>alert(1)</script>")
     doc = described_class.call(Reports::ProvinceReport.call(evil))

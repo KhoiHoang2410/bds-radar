@@ -23,6 +23,7 @@ module Reports
     def render
       heading
       summary_section
+      condo_by_project_section
       price_per_bedroom_section
       land_section
       price_distribution_section
@@ -54,6 +55,30 @@ module Reports
       data = [ [ "Loại", "Số lượng", "Giá TB", "Diện tích TB" ] ]
       @report[:by_type].each do |row|
         data << [ row[:type], row[:count].to_s, money(row[:avg_price]), area(row[:avg_area]) ]
+      end
+      render_table(data)
+    end
+
+    # Condos grouped by project: number of units, 1- & 2-bedroom average price, price/m².
+    # (The HTML report shows these one project at a time via a dropdown; the PDF lists all.)
+    def condo_by_project_section
+      projects = @report[:condo_by_project]
+      section_title("Căn hộ theo dự án")
+      if projects.empty?
+        @pdf.text "Không có dữ liệu căn hộ theo dự án.", size: 9, color: "888888"
+        @pdf.move_down 8
+        return
+      end
+
+      data = [ [ "Dự án", "Số căn", "Giá TB 1PN", "Giá TB 2PN", "Giá / m²" ] ]
+      projects.each do |row|
+        data << [
+          row[:project_name].to_s,
+          row[:count].to_s,
+          money(row[:avg_price_1bed]),
+          money(row[:avg_price_2bed]),
+          price_per_m2(row[:avg_price_per_m2])
+        ]
       end
       render_table(data)
     end
