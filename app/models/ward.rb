@@ -1,7 +1,8 @@
-class WardCity < ApplicationRecord
+class Ward < ApplicationRecord
+  belongs_to :province
+
   validates :ward, presence: true
-  validates :province, presence: true
-  validates :ward, uniqueness: { scope: :province }
+  validates :ward, uniqueness: { scope: :province_id }
   validate :ward_alternatives_unique_within_province
 
   private
@@ -13,12 +14,12 @@ class WardCity < ApplicationRecord
     return if ward_alternatives.blank?
 
     mine = ward_alternatives.map { |a| a.to_s.downcase.strip }
-    others = WardCity.where(province: province).where.not(id: id)
-    taken = others.flat_map { |wc| [ wc.ward, *wc.ward_alternatives ] }.map { |s| s.to_s.downcase.strip }
+    others = Ward.where(province_id: province_id).where.not(id: id)
+    taken = others.flat_map { |w| [ w.ward, *w.ward_alternatives ] }.map { |s| s.to_s.downcase.strip }
 
     clash = mine & taken
     return if clash.empty?
 
-    errors.add(:ward_alternatives, "collide with another ward in #{province}: #{clash.join(', ')}")
+    errors.add(:ward_alternatives, "collide with another ward in province #{province_id}: #{clash.join(', ')}")
   end
 end

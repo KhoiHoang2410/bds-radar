@@ -1,23 +1,26 @@
-# Resolves a messy supplier admin path to a canonical WardCity, best-effort:
-#   exact → alternatives → fuzzy, and **nil on ambiguity** (a numbered ward that
-#   fuzzy-matches several wards equally well). Never raises; a nil match is valid
-#   (the RealEstate is still mappable via coords — ADR-0001).
-class WardCityMatcher
+# Resolves a messy supplier ward string to a canonical Ward within a known province,
+# best-effort: exact → alternatives → fuzzy, and **nil on ambiguity** (a numbered ward
+# that fuzzy-matches several wards equally well). Never raises; a nil match is valid
+# (the RealEstate is still mappable via coords — ADR-0001).
+#
+# Province is no longer fuzzy: callers pass the canonical province_id (the crawl
+# province they already hold), so candidates scope directly by the FK.
+class WardMatcher
   FUZZY_THRESHOLD = 2 # max edit distance for a fuzzy candidate
 
-  def self.call(ward:, province:)
-    new(ward: ward, province: province).call
+  def self.call(ward:, province_id:)
+    new(ward: ward, province_id: province_id).call
   end
 
-  def initialize(ward:, province:)
+  def initialize(ward:, province_id:)
     @ward = ward.to_s.strip
-    @province = province.to_s.strip
+    @province_id = province_id
   end
 
   def call
-    return nil if @ward.blank? || @province.blank?
+    return nil if @ward.blank? || @province_id.blank?
 
-    candidates = candidates_in_province
+    candidates = Ward.where(province_id: @province_id).to_a
     return nil if candidates.empty?
 
     match = exact_match(candidates) || alias_match(candidates) || fuzzy_match(candidates)
@@ -26,32 +29,20 @@ class WardCityMatcher
 
   private
 
-  # Scope to the province: exact rows first, else match canonical/alternative names
-  # (normalized) so raw supplier drift like "Tp Hồ Chí Minh" still resolves.
-  def candidates_in_province
-    exact = WardCity.where(province: @province).to_a
-    return exact if exact.any?
-
-    pn = normalize(@province)
-    WardCity.all.select do |wc|
-      normalize(wc.province) == pn || wc.province_alternatives.any? { |a| normalize(a) == pn }
-    end
-  end
-
   def exact_match(candidates)
-    candidates.find { |wc| wc.ward == @ward }
+    candidates.find { |w| w.ward == @ward }
   end
 
   def alias_match(candidates)
     down = @ward.downcase
-    candidates.find { |wc| wc.ward_alternatives.any? { |a| a.to_s.downcase == down } }
+    candidates.find { |w| w.ward_alternatives.any? { |a| a.to_s.downcase == down } }
   end
 
   def fuzzy_match(candidates)
     target = normalize(@ward)
-    scored = candidates.map do |wc|
-      names = [ wc.ward, *wc.ward_alternatives ].map { |n| normalize(n) }
-      [ wc, names.map { |n| distance(target, n) }.min ]
+    scored = candidates.map do |w|
+      names = [ w.ward, *w.ward_alternatives ].map { |n| normalize(n) }
+      [ w, names.map { |n| distance(target, n) }.min ]
     end
 
     within = scored.select { |(_, d)| d <= FUZZY_THRESHOLD }

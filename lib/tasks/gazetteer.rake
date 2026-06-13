@@ -1,5 +1,5 @@
 namespace :gazetteer do
-  desc "Refresh db/data/ward_cities.json from provinces.open-api.vn v2 (post-2025 wards)"
+  desc "Refresh db/data/wards.json from provinces.open-api.vn v2 (post-2025 wards)"
   task refresh: :environment do
     require "faraday"
     require "faraday/retry"
@@ -25,7 +25,7 @@ namespace :gazetteer do
       puts "  #{name}: #{wards.size} wards"
     end
 
-    path = Rails.root.join("db/data/ward_cities.json")
+    path = Rails.root.join("db/data/wards.json")
     File.write(path, "#{JSON.pretty_generate(gazetteer)}\n")
     puts "Wrote #{path} (#{gazetteer.values.sum(&:size)} wards). Run `rails db:seed` to load."
   end

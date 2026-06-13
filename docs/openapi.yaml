@@ -111,7 +111,7 @@ paths:
       operationId: listRealEstates
       description: >
         Filter via ransack q[...] predicates. Common ones:
-        q[province_id_eq] (canonical province), q[ward_city_id_eq],
+        q[province_id_eq] (canonical province), q[ward_id_eq],
         q[district_or_city_cont], q[type_eq], q[price_gteq]/q[price_lteq],
         q[area_gteq]/q[area_lteq], q[bedrooms_gteq], q[bathrooms_eq],
         q[posted_at_gteq], and a bbox via
@@ -216,7 +216,7 @@ components:
         province: { type: string, description: raw display string }
         district_or_city: { type: string }
         ward: { type: string }
-        ward_city_id: { type: integer, nullable: true }
+        ward_id: { type: integer, nullable: true }
         latitude: { type: number }
         longitude: { type: number }
         image_urls: { type: array, items: { type: string } }

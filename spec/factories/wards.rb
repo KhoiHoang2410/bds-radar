@@ -1,8 +1,7 @@
 FactoryBot.define do
-  factory :ward_city do
+  factory :ward do
     sequence(:ward) { |n| "Phường Số #{n}" }
-    province { "Hồ Chí Minh" }
+    association :province
     ward_alternatives { [] }
-    province_alternatives { [] }
   end
 end

@@ -2,7 +2,7 @@ FactoryBot.define do
   factory :real_estate do
     association :crawl_province, factory: :province
     real_estate_source
-    ward_city { nil }
+    matched_ward { nil }
     status { "active" }
     type { "house" }
     price { 5_000_000_000 }
