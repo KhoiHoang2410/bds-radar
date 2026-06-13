@@ -24,8 +24,7 @@ module Reports
       heading
       summary_section
       price_per_bedroom_section
-      land_section
-      land_by_area_section
+      land_by_ward_area_section
       price_distribution_section
       @pdf.render
     end
@@ -77,31 +76,25 @@ module Reports
       render_table(data)
     end
 
-    # Land broken down by lot size: per area bucket, count, average price, and price/m².
-    def land_by_area_section
-      section_title("Đất — phân tích theo diện tích")
-      data = [ [ "Khoảng diện tích", "Số tin", "Giá TB", "Giá / m²" ] ]
-      @report[:land_by_area].each do |row|
-        data << [ row[:label], row[:count].to_s, money(row[:avg_price]), price_per_m2(row[:avg_price_per_m2]) ]
-      end
-      render_table(data)
-    end
-
-    def land_section
-      land = @report[:land_price_per_m2]
-      section_title("Đất — giá trên mỗi m²")
-      if land[:count].zero?
+    # Land analysed per ward, each ward broken into area buckets (count, avg price, price/m²).
+    def land_by_ward_area_section
+      section_title("Đất — phân tích theo phường & diện tích")
+      wards = @report[:land_by_ward_area]
+      if wards.empty?
         @pdf.text "Không có tin đất.", size: 9, color: "888888"
         @pdf.move_down 8
         return
       end
 
-      data = [
-        [ "Số tin", land[:count].to_s ],
-        [ "Diện tích TB", area(land[:avg_area]) ],
-        [ "Giá / m² (TB)", price_per_m2(land[:avg_price_per_m2]) ]
-      ]
-      render_table(data)
+      wards.each do |ward|
+        @pdf.text "#{ward[:ward]} (#{ward[:count]} tin)", size: 11, style: :bold
+        @pdf.move_down 4
+        data = [ [ "Khoảng diện tích", "Số tin", "Giá TB", "Giá / m²" ] ]
+        ward[:buckets].each do |b|
+          data << [ b[:label], b[:count].to_s, money(b[:avg_price]), price_per_m2(b[:avg_price_per_m2]) ]
+        end
+        render_table(data)
+      end
     end
 
     def price_distribution_section

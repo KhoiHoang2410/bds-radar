@@ -44,8 +44,7 @@ module Reports
         by_type: by_type,
         by_bedrooms: by_bedrooms,
         price_per_bedroom: { condo: price_per_bedroom_for("condo") },
-        land_price_per_m2: land_price_per_m2,
-        land_by_area: land_by_area,
+        land_by_ward_area: land_by_ward_area,
         price_distribution: price_distribution
       }
     end
@@ -81,34 +80,46 @@ module Reports
       end.sort_by { |row| row[:bedrooms] }
     end
 
-    # Land has no bedrooms, so price/m² is its comparable unit metric.
-    def land_price_per_m2
-      scope = @scope.where(type: "land").where("area > 0 AND price IS NOT NULL")
-      count = scope.count
-      return { count: 0, avg_price_per_m2: nil, avg_area: nil } if count.zero?
+    # SQL CASE that maps a row's area to its AREA_BUCKETS index (0-based, last = open-ended).
+    AREA_BUCKET_CASE = Arel.sql(<<~SQL.squish).freeze
+      CASE
+        WHEN area < 30 THEN 0
+        WHEN area < 50 THEN 1
+        WHEN area < 70 THEN 2
+        WHEN area < 100 THEN 3
+        WHEN area < 150 THEN 4
+        ELSE 5
+      END
+    SQL
 
-      {
-        count: count,
-        avg_price_per_m2: scope.pluck(Arel.sql("AVG(price::numeric / area)")).first&.to_f,
-        avg_area: scope.pluck(Arel.sql("AVG(area)")).first&.to_f
-      }
-    end
+    # Land broken down by ward, then by lot size (land has no bedrooms). One row per
+    # ward that has land listings, each carrying the full AREA_BUCKETS breakdown
+    # (count, average price, average price/m²). Wards are ordered by listing count desc.
+    # Computed in a single grouped query (ward × bucket) to avoid N+1 over wards.
+    def land_by_ward_area
+      rows = @scope.where(type: "land").where("area > 0 AND price IS NOT NULL")
+                   .group(:ward, AREA_BUCKET_CASE)
+                   .pluck(:ward, AREA_BUCKET_CASE, Arel.sql("COUNT(*)"),
+                          Arel.sql("AVG(price)"), Arel.sql("AVG(price::numeric / area)"))
 
-    # Land broken down by lot size (the bedroom-based view doesn't apply to land):
-    # per area bucket, how many lots, their average price, and average price per m².
-    def land_by_area
-      land = @scope.where(type: "land").where("area > 0 AND price IS NOT NULL")
-      AREA_BUCKETS.map do |label, low, high|
-        scope = land.where("area >= ?", low)
-        scope = scope.where("area < ?", high) if high
-        count = scope.count
-        {
-          label: label,
-          count: count,
-          avg_price: count.zero? ? nil : scope.average(:price)&.to_f,
-          avg_price_per_m2: count.zero? ? nil : scope.pluck(Arel.sql("AVG(price::numeric / area)")).first&.to_f
-        }
+      by_ward = Hash.new { |h, k| h[k] = {} }
+      rows.each do |ward, bucket_index, count, avg_price, avg_per_m2|
+        by_ward[ward][bucket_index] =
+          { count: count, avg_price: avg_price&.to_f, avg_price_per_m2: avg_per_m2&.to_f }
       end
+
+      by_ward.map do |ward, cells|
+        buckets = AREA_BUCKETS.each_index.map do |i|
+          cell = cells[i]
+          {
+            label: AREA_BUCKETS[i][0],
+            count: cell ? cell[:count] : 0,
+            avg_price: cell && cell[:avg_price],
+            avg_price_per_m2: cell && cell[:avg_price_per_m2]
+          }
+        end
+        { ward: ward, count: buckets.sum { |b| b[:count] }, buckets: buckets }
+      end.sort_by { |row| [ -row[:count], row[:ward].to_s ] }
     end
 
     # Count of listings whose price falls in each bucket (rows with NULL price excluded).

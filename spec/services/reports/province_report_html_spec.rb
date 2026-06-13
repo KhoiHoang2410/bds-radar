@@ -14,21 +14,31 @@ RSpec.describe Reports::ProvinceReportHtml do
     expect(doc).to start_with("<!DOCTYPE html>")
     expect(doc).to include("Hồ Chí Minh")
     expect(doc).to include("cdn.jsdelivr.net/npm/chart.js")
-    %w[byType byBedrooms avgPrice priceDist landByArea].each do |canvas|
+    %w[byType byBedrooms avgPrice priceDist].each do |canvas|
       expect(doc).to include(%(id="#{canvas}"))
     end
   end
 
-  it "renders the land area-bucket table and its labels" do
-    create(:real_estate, crawl_province: hcm, type: "land", bedrooms: nil, price: 2_000_000_000, area: 40.0)
+  it "renders land analysis grouped by ward, each with its area-bucket table" do
+    create(:real_estate, crawl_province: hcm, type: "land", ward: "Phường 1", price: 2_000_000_000, area: 40.0)
+    create(:real_estate, crawl_province: hcm, type: "land", ward: "Phường 2", price: 9_000_000_000, area: 200.0)
 
     doc = html
-    expect(doc).to include("Đất — phân tích theo diện tích")
+    expect(doc).to include("Đất — phân tích theo phường")
+    expect(doc).to include("Phường 1")
+    expect(doc).to include("Phường 2")
     expect(doc).to include("< 30 m²")
-    expect(doc).to include("30 – 50 m²")
     expect(doc).to include("≥ 150 m²")
     # land is no longer analysed by bedroom
     expect(doc).not_to include("Đất — giá theo số phòng ngủ")
+  end
+
+  it "escapes a malicious ward name in the land section" do
+    create(:real_estate, crawl_province: hcm, type: "land", ward: "<b>x</b>", price: 2_000_000_000, area: 40.0)
+
+    doc = html
+    expect(doc).not_to include("<b>x</b>")
+    expect(doc).to include("&lt;b&gt;x&lt;/b&gt;")
   end
 
   it "embeds the aggregated figures as JSON for the charts" do

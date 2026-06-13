@@ -38,8 +38,7 @@ module Reports
           #{charts_grid}
           #{by_type_table}
           #{price_per_bedroom_tables}
-          #{land_section}
-          #{land_by_area_table}
+          #{land_by_ward_area_section}
         </div>
         <script>#{chart_script}</script>
         </body>
@@ -90,7 +89,6 @@ module Reports
           <div class="chart-box"><h2>Số tin theo số phòng ngủ</h2><canvas id="byBedrooms"></canvas></div>
           <div class="chart-box"><h2>Giá trung bình theo loại hình (tỷ)</h2><canvas id="avgPrice"></canvas></div>
           <div class="chart-box"><h2>Phân bố theo khoảng giá</h2><canvas id="priceDist"></canvas></div>
-          <div class="chart-box"><h2>Đất — giá/m² theo diện tích (triệu)</h2><canvas id="landByArea"></canvas></div>
         </section>
       HTML
     end
@@ -103,8 +101,8 @@ module Reports
       table("Tổng quan theo loại hình", header_row, rows, empty: "Không có dữ liệu.")
     end
 
-    # Only condos are analysed by bedroom count — land is analysed by area (see
-    # land_by_area_table), since land listings rarely carry a bedroom count.
+    # Only condos are analysed by bedroom count — land is analysed by ward × area (see
+    # land_by_ward_area_section), since land listings rarely carry a bedroom count.
     def price_per_bedroom_tables
       rows = @report[:price_per_bedroom][:condo].map do |row|
         [ row[:bedrooms].to_s, row[:count].to_s, money(row[:avg_price]), money(row[:avg_price_per_bedroom]) ]
@@ -113,28 +111,27 @@ module Reports
             empty: "Không có dữ liệu phòng ngủ.")
     end
 
-    # Land broken down by lot size: per area bucket, count, average price, and price/m².
-    def land_by_area_table
-      header_row = [ "Khoảng diện tích", "Số tin", "Giá TB", "Giá / m²" ]
-      rows = @report[:land_by_area].map do |row|
-        [ row[:label], row[:count].to_s, money(row[:avg_price]), price_per_m2(row[:avg_price_per_m2]) ]
-      end
-      table("Đất — phân tích theo diện tích", header_row, rows, empty: "Không có tin đất.")
+    # Land analysed per ward, each ward broken into area buckets (count, avg price,
+    # price/m²). One sub-table per ward; an empty-state note when the province has no land.
+    def land_by_ward_area_section
+      wards = @report[:land_by_ward_area]
+      inner =
+        if wards.empty?
+          %(<p class="empty">Không có tin đất.</p>)
+        else
+          wards.map { |ward| land_ward_block(ward) }.join
+        end
+      %(<section class="block"><h2>Đất — phân tích theo phường &amp; diện tích</h2>#{inner}</section>)
     end
 
-    def land_section
-      land = @report[:land_price_per_m2]
-      rows =
-        if land[:count].zero?
-          []
-        else
-          [
-            [ "Số tin", land[:count].to_s ],
-            [ "Diện tích TB", area(land[:avg_area]) ],
-            [ "Giá / m² (TB)", price_per_m2(land[:avg_price_per_m2]) ]
-          ]
-        end
-      table("Đất — giá trên mỗi m²", nil, rows, empty: "Không có tin đất.")
+    def land_ward_block(ward)
+      head = "<thead><tr><th>Khoảng diện tích</th><th>Số tin</th><th>Giá TB</th><th>Giá / m²</th></tr></thead>"
+      body = ward[:buckets].map do |b|
+        "<tr><td>#{b[:label]}</td><td>#{b[:count]}</td><td>#{money(b[:avg_price])}</td>" \
+          "<td>#{price_per_m2(b[:avg_price_per_m2])}</td></tr>"
+      end.join
+      %(<div class="ward-block"><h3>#{h(ward[:ward])} <span class="ward-count">(#{ward[:count]} tin)</span></h3>) +
+        %(<table>#{head}<tbody>#{body}</tbody></table></div>)
     end
 
     # Builds a titled table; renders the empty-state note when there are no rows.
@@ -166,10 +163,6 @@ module Reports
         priceDistribution: {
           labels: @report[:price_distribution].map { |r| r[:label] },
           counts: @report[:price_distribution].map { |r| r[:count] }
-        },
-        landByArea: {
-          labels: @report[:land_by_area].map { |r| r[:label] },
-          pricePerM2: @report[:land_by_area].map { |r| r[:avg_price_per_m2] ? (r[:avg_price_per_m2] / MILLION).round(1) : 0 }
         }
       }
     end
@@ -204,12 +197,6 @@ module Reports
                   datasets: [{ label: "Số tin", data: DATA.priceDistribution.counts, backgroundColor: "#f59e0b" }] },
           options: noLegend
         });
-        new Chart(document.getElementById("landByArea"), {
-          type: "bar",
-          data: { labels: DATA.landByArea.labels,
-                  datasets: [{ label: "Giá/m² (triệu)", data: DATA.landByArea.pricePerM2, backgroundColor: "#7c3aed" }] },
-          options: noLegend
-        });
       JS
     end
 
@@ -239,6 +226,10 @@ module Reports
         th { background: #f9fafb; font-weight: 600; }
         tbody tr:last-child td { border-bottom: none; }
         .empty { color: #9ca3af; font-size: 13px; margin: 0; }
+        .ward-block { margin-top: 18px; }
+        .ward-block:first-of-type { margin-top: 4px; }
+        .ward-block h3 { margin: 0 0 8px; font-size: 14px; font-weight: 600; }
+        .ward-block .ward-count { color: #6b7280; font-weight: 400; font-size: 13px; }
       CSS
     end
 
