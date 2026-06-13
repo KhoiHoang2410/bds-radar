@@ -8,7 +8,10 @@ class ReportsController < ApplicationController
     report = Reports::ProvinceReport.call(province)
 
     respond_to do |format|
-      format.html { render html: Reports::ProvinceReportHtml.call(report).html_safe }
+      format.html do
+        scheduled = Province.scheduled.order(:name)
+        render html: Reports::ProvinceReportHtml.call(report, provinces: scheduled).html_safe
+      end
       format.pdf do
         send_data Reports::ProvinceReportPdf.call(report),
                   filename: "bds-report-province-#{province.id}.pdf",

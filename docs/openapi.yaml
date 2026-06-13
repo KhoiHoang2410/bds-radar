@@ -201,8 +201,9 @@ paths:
         breakdown by district → ward → area bucket (count/avg-price/price-per-m²), a
         listing count distribution across price buckets, and a condo-by-project
         breakdown (units, 1- & 2-bedroom average price, price per m² — shown as a
-        per-project table in HTML). Default is HTML (interactive
-        Chart.js charts); request `report.pdf` for the PDF.
+        per-project table in HTML). Default is HTML (interactive Chart.js charts) —
+        which also includes a dropdown to switch to another scheduled province's
+        report; request `report.pdf` for the PDF.
       parameters:
         - { name: province_id, in: path, required: true, schema: { type: integer } }
         - name: format
