@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BDS Radar — Map</title>
+  <!-- Leaflet CSS is vendored locally (ADR-0003: no JS/CSS CDN at runtime). -->
+  <link rel="stylesheet" href="/map/vendor/leaflet/leaflet.css" />
+  <link rel="stylesheet" href="/map/app.css" />
+</head>
+<body>
+  <div id="map"></div>
+
+  <!-- Visible note shown when the viewport is dense and some listings are capped. -->
+  <div id="cap-note" class="cap-note" hidden></div>
+
+  <!-- Status / loading indicator. -->
+  <div id="status" class="status" hidden></div>
+
+  <!-- Leaflet JS, vendored locally. -->
+  <script src="/map/vendor/leaflet/leaflet.js"></script>
+  <script src="/map/app.js"></script>
+</body>
+</html>
