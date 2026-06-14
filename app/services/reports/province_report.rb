@@ -17,6 +17,17 @@ module Reports
       [ "≥ 20 tỷ",    20_000_000_000,  nil ]
     ].freeze
 
+    # [label, lower_bound_inclusive, upper_bound_exclusive] in m²; nil upper = open-ended.
+    # Land has no bedrooms, so it's analysed by lot size instead.
+    AREA_BUCKETS = [
+      [ "< 30 m²",      0,    30 ],
+      [ "30 – 50 m²",   30,   50 ],
+      [ "50 – 70 m²",   50,   70 ],
+      [ "70 – 100 m²",  70,   100 ],
+      [ "100 – 150 m²", 100,  150 ],
+      [ "≥ 150 m²",     150,  nil ]
+    ].freeze
+
     def self.call(province)
       new(province).call
     end
@@ -32,8 +43,8 @@ module Reports
         total_count: @scope.count,
         by_type: by_type,
         by_bedrooms: by_bedrooms,
-        price_per_bedroom: { condo: price_per_bedroom_for("condo"), land: price_per_bedroom_for("land") },
-        land_price_per_m2: land_price_per_m2,
+        price_per_bedroom: { condo: price_per_bedroom_for("condo") },
+        land_by_district_ward: land_by_district_ward,
         price_distribution: price_distribution,
         condo_by_project: condo_by_project
       }
@@ -94,17 +105,57 @@ module Reports
       end.sort_by { |row| row[:bedrooms] }
     end
 
-    # Land has no bedrooms, so price/m² is its comparable unit metric.
-    def land_price_per_m2
-      scope = @scope.where(type: "land").where("area > 0 AND price IS NOT NULL")
-      count = scope.count
-      return { count: 0, avg_price_per_m2: nil, avg_area: nil } if count.zero?
+    # SQL CASE that maps a row's area to its AREA_BUCKETS index (0-based, last = open-ended).
+    AREA_BUCKET_CASE = Arel.sql(<<~SQL.squish).freeze
+      CASE
+        WHEN area < 30 THEN 0
+        WHEN area < 50 THEN 1
+        WHEN area < 70 THEN 2
+        WHEN area < 100 THEN 3
+        WHEN area < 150 THEN 4
+        ELSE 5
+      END
+    SQL
 
-      {
-        count: count,
-        avg_price_per_m2: scope.pluck(Arel.sql("AVG(price::numeric / area)")).first&.to_f,
-        avg_area: scope.pluck(Arel.sql("AVG(area)")).first&.to_f
-      }
+    # Land broken down by district_or_city → ward → lot size (land has no bedrooms).
+    # The administrative path is province → district_or_city (e.g. "Thành phố Nha
+    # Trang") → ward, so a city like Nha Trang is a district here, not a ward. Each
+    # ward carries the full AREA_BUCKETS breakdown (count, avg price, avg price/m²).
+    # Districts and wards are each ordered by listing count desc. Computed in a single
+    # grouped query (district × ward × bucket) to avoid N+1.
+    def land_by_district_ward
+      rows = @scope.where(type: "land").where("area > 0 AND price IS NOT NULL")
+                   .group(:district_or_city, :ward, AREA_BUCKET_CASE)
+                   .pluck(:district_or_city, :ward, AREA_BUCKET_CASE, Arel.sql("COUNT(*)"),
+                          Arel.sql("AVG(price)"), Arel.sql("AVG(price::numeric / area)"))
+
+      nested = Hash.new { |h, k| h[k] = Hash.new { |g, w| g[w] = {} } }
+      rows.each do |district, ward, bucket_index, count, avg_price, avg_per_m2|
+        nested[district][ward][bucket_index] =
+          { count: count, avg_price: avg_price&.to_f, avg_price_per_m2: avg_per_m2&.to_f }
+      end
+
+      nested.map do |district, wards_cells|
+        wards = wards_cells.map do |ward, cells|
+          buckets = area_buckets_from(cells)
+          { ward: ward, count: buckets.sum { |b| b[:count] }, buckets: buckets }
+        end.sort_by { |w| [ -w[:count], w[:ward].to_s ] }
+        { district: district, count: wards.sum { |w| w[:count] }, wards: wards }
+      end.sort_by { |d| [ -d[:count], d[:district].to_s ] }
+    end
+
+    # Turns a {bucket_index => cell} hash into the full ordered AREA_BUCKETS list,
+    # filling absent buckets with a zero count.
+    def area_buckets_from(cells)
+      AREA_BUCKETS.each_index.map do |i|
+        cell = cells[i]
+        {
+          label: AREA_BUCKETS[i][0],
+          count: cell ? cell[:count] : 0,
+          avg_price: cell && cell[:avg_price],
+          avg_price_per_m2: cell && cell[:avg_price_per_m2]
+        }
+      end
     end
 
     # Count of listings whose price falls in each bucket (rows with NULL price excluded).

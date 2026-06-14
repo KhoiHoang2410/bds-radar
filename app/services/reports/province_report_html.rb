@@ -42,7 +42,7 @@ module Reports
           #{condo_by_project_section}
           #{by_type_table}
           #{price_per_bedroom_tables}
-          #{land_section}
+          #{land_by_district_ward_section}
         </div>
         <script>#{chart_script}</script>
         </body>
@@ -138,29 +138,42 @@ module Reports
       table("Tổng quan theo loại hình", header_row, rows, empty: "Không có dữ liệu.")
     end
 
+    # Only condos are analysed by bedroom count — land is analysed by area within each
+    # ward (see land_by_district_ward_section), since land rarely carries a bedroom count.
     def price_per_bedroom_tables
-      { condo: "Căn hộ — giá theo số phòng ngủ", land: "Đất — giá theo số phòng ngủ" }.map do |key, title|
-        rows = @report[:price_per_bedroom][key].map do |row|
-          [ row[:bedrooms].to_s, row[:count].to_s, money(row[:avg_price]), money(row[:avg_price_per_bedroom]) ]
-        end
-        table(title, [ "Phòng ngủ", "Số lượng", "Giá TB", "Giá / phòng ngủ" ], rows,
-              empty: "Không có dữ liệu phòng ngủ.")
-      end.join
+      rows = @report[:price_per_bedroom][:condo].map do |row|
+        [ row[:bedrooms].to_s, row[:count].to_s, money(row[:avg_price]), money(row[:avg_price_per_bedroom]) ]
+      end
+      table("Căn hộ — giá theo số phòng ngủ", [ "Phòng ngủ", "Số lượng", "Giá TB", "Giá / phòng ngủ" ], rows,
+            empty: "Không có dữ liệu phòng ngủ.")
     end
 
-    def land_section
-      land = @report[:land_price_per_m2]
-      rows =
-        if land[:count].zero?
-          []
+    # Land analysed by district (e.g. "Thành phố Nha Trang") → ward → area buckets
+    # (count, avg price, price/m²). An empty-state note when the province has no land.
+    def land_by_district_ward_section
+      districts = @report[:land_by_district_ward]
+      inner =
+        if districts.empty?
+          %(<p class="empty">Không có tin đất.</p>)
         else
-          [
-            [ "Số tin", land[:count].to_s ],
-            [ "Diện tích TB", area(land[:avg_area]) ],
-            [ "Giá / m² (TB)", price_per_m2(land[:avg_price_per_m2]) ]
-          ]
+          districts.map { |district| land_district_block(district) }.join
         end
-      table("Đất — giá trên mỗi m²", nil, rows, empty: "Không có tin đất.")
+      %(<section class="block"><h2>Đất — phân tích theo khu vực &amp; diện tích</h2>#{inner}</section>)
+    end
+
+    def land_district_block(district)
+      wards = district[:wards].map { |ward| land_ward_block(ward) }.join
+      %(<div class="district-block"><h3>#{h(district[:district])} <span class="loc-count">(#{district[:count]} tin)</span></h3>#{wards}</div>)
+    end
+
+    def land_ward_block(ward)
+      head = "<thead><tr><th>Khoảng diện tích</th><th>Số tin</th><th>Giá TB</th><th>Giá / m²</th></tr></thead>"
+      body = ward[:buckets].map do |b|
+        "<tr><td>#{b[:label]}</td><td>#{b[:count]}</td><td>#{money(b[:avg_price])}</td>" \
+          "<td>#{price_per_m2(b[:avg_price_per_m2])}</td></tr>"
+      end.join
+      %(<div class="ward-block"><h4>#{h(ward[:ward])} <span class="loc-count">(#{ward[:count]} tin)</span></h4>) +
+        %(<table>#{head}<tbody>#{body}</tbody></table></div>)
     end
 
     # Builds a titled table; renders the empty-state note when there are no rows.
@@ -267,6 +280,12 @@ module Reports
         th { background: #f9fafb; font-weight: 600; }
         tbody tr:last-child td { border-bottom: none; }
         .empty { color: #9ca3af; font-size: 13px; margin: 0; }
+        .district-block { margin-top: 24px; padding-top: 16px; border-top: 2px solid #e5e7eb; }
+        .district-block:first-of-type { margin-top: 6px; padding-top: 0; border-top: none; }
+        .district-block > h3 { margin: 0 0 6px; font-size: 16px; font-weight: 700; }
+        .ward-block { margin: 14px 0 0 14px; }
+        .ward-block h4 { margin: 0 0 6px; font-size: 13px; font-weight: 600; }
+        .loc-count { color: #6b7280; font-weight: 400; font-size: 13px; }
       CSS
     end
 

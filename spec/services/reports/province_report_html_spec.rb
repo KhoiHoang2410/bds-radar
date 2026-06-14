@@ -20,6 +20,31 @@ RSpec.describe Reports::ProvinceReportHtml do
     end
   end
 
+  it "renders land analysis grouped by district then ward, each with its area-bucket table" do
+    create(:real_estate, crawl_province: hcm, type: "land", district_or_city: "Thành phố Nha Trang", ward: "Phường 1", price: 2_000_000_000, area: 40.0)
+    create(:real_estate, crawl_province: hcm, type: "land", district_or_city: "Thành phố Nha Trang", ward: "Phường 2", price: 9_000_000_000, area: 200.0)
+
+    doc = html
+    expect(doc).to include("Đất — phân tích theo khu vực")
+    expect(doc).to include("Thành phố Nha Trang")
+    expect(doc).to include("Phường 1")
+    expect(doc).to include("Phường 2")
+    expect(doc).to include("< 30 m²")
+    expect(doc).to include("≥ 150 m²")
+    # land is no longer analysed by bedroom
+    expect(doc).not_to include("Đất — giá theo số phòng ngủ")
+  end
+
+  it "escapes malicious district/ward names in the land section" do
+    create(:real_estate, crawl_province: hcm, type: "land", district_or_city: "<i>d</i>", ward: "<b>x</b>", price: 2_000_000_000, area: 40.0)
+
+    doc = html
+    expect(doc).not_to include("<b>x</b>")
+    expect(doc).not_to include("<i>d</i>")
+    expect(doc).to include("&lt;b&gt;x&lt;/b&gt;")
+    expect(doc).to include("&lt;i&gt;d&lt;/i&gt;")
+  end
+
   it "embeds the aggregated figures as JSON for the charts" do
     create(:real_estate, crawl_province: hcm, type: "condo", bedrooms: 2, price: 4_000_000_000, area: 50.0)
     create(:real_estate, crawl_province: hcm, type: "condo", bedrooms: 2, price: 6_000_000_000, area: 70.0)

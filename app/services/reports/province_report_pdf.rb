@@ -28,7 +28,7 @@ module Reports
       summary_section
       condo_by_project_section
       price_per_bedroom_section
-      land_section
+      land_by_district_ward_section
       price_distribution_section
       @pdf.render
     end
@@ -86,39 +86,47 @@ module Reports
       render_table(data)
     end
 
+    # Only condos are analysed by bedroom count — land is analysed by area within each
+    # ward (land_by_district_ward_section), since land rarely carries a bedroom count.
     def price_per_bedroom_section
-      { condo: "Căn hộ — giá theo số phòng ngủ", land: "Đất — giá theo số phòng ngủ" }.each do |key, label|
-        rows = @report[:price_per_bedroom][key]
-        section_title(label)
-        if rows.empty?
-          @pdf.text "Không có dữ liệu phòng ngủ.", size: 9, color: "888888"
-          @pdf.move_down 8
-          next
-        end
-
-        data = [ [ "Phòng ngủ", "Số lượng", "Giá TB", "Giá / phòng ngủ" ] ]
-        rows.each do |row|
-          data << [ row[:bedrooms].to_s, row[:count].to_s, money(row[:avg_price]), money(row[:avg_price_per_bedroom]) ]
-        end
-        render_table(data)
+      rows = @report[:price_per_bedroom][:condo]
+      section_title("Căn hộ — giá theo số phòng ngủ")
+      if rows.empty?
+        @pdf.text "Không có dữ liệu phòng ngủ.", size: 9, color: "888888"
+        @pdf.move_down 8
+        return
       end
+
+      data = [ [ "Phòng ngủ", "Số lượng", "Giá TB", "Giá / phòng ngủ" ] ]
+      rows.each do |row|
+        data << [ row[:bedrooms].to_s, row[:count].to_s, money(row[:avg_price]), money(row[:avg_price_per_bedroom]) ]
+      end
+      render_table(data)
     end
 
-    def land_section
-      land = @report[:land_price_per_m2]
-      section_title("Đất — giá trên mỗi m²")
-      if land[:count].zero?
+    # Land analysed by district → ward → area buckets (count, avg price, price/m²).
+    def land_by_district_ward_section
+      section_title("Đất — phân tích theo khu vực & diện tích")
+      districts = @report[:land_by_district_ward]
+      if districts.empty?
         @pdf.text "Không có tin đất.", size: 9, color: "888888"
         @pdf.move_down 8
         return
       end
 
-      data = [
-        [ "Số tin", land[:count].to_s ],
-        [ "Diện tích TB", area(land[:avg_area]) ],
-        [ "Giá / m² (TB)", price_per_m2(land[:avg_price_per_m2]) ]
-      ]
-      render_table(data)
+      districts.each do |district|
+        @pdf.text "#{district[:district]} (#{district[:count]} tin)", size: 12, style: :bold
+        @pdf.move_down 4
+        district[:wards].each do |ward|
+          @pdf.text "#{ward[:ward]} (#{ward[:count]} tin)", size: 10, style: :bold, color: "444444"
+          @pdf.move_down 2
+          data = [ [ "Khoảng diện tích", "Số tin", "Giá TB", "Giá / m²" ] ]
+          ward[:buckets].each do |b|
+            data << [ b[:label], b[:count].to_s, money(b[:avg_price]), price_per_m2(b[:avg_price_per_m2]) ]
+          end
+          render_table(data)
+        end
+      end
     end
 
     def price_distribution_section
