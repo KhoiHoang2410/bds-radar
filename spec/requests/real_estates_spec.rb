@@ -33,6 +33,29 @@ RSpec.describe "RealEstates", type: :request do
       expect(ids).to contain_exactly(cheap.id)
     end
 
+    it "includes the computed price_per_m2 (VND/m²) in each row" do
+      create(:real_estate, price: 5_000_000_000, area: 50.0)
+
+      get "/real_estates"
+
+      row = response.parsed_body.fetch("real_estates").first
+      expect(row).to have_key("price_per_m2")
+      expect(row["price_per_m2"]).to eq(100_000_000.0)
+    end
+
+    it "filters by q[price_per_m2_gteq]/q[price_per_m2_lteq], excluding zero-area rows" do
+      cheap = create(:real_estate, price: 1_000_000_000, area: 50.0)  # 20M/m²
+      mid = create(:real_estate, price: 5_000_000_000, area: 50.0)    # 100M/m²
+      create(:real_estate, price: 9_000_000_000, area: 50.0)         # 180M/m² (above range)
+      zero_area = create(:real_estate, price: 5_000_000_000, area: 0) # undefined → excluded
+
+      get "/real_estates", params: { q: { price_per_m2_gteq: 50_000_000, price_per_m2_lteq: 150_000_000 } }
+
+      ids = response.parsed_body.fetch("real_estates").map { |r| r["id"] }
+      expect(ids).to contain_exactly(mid.id)
+      expect(ids).not_to include(cheap.id, zero_area.id)
+    end
+
     it "defaults to active rows only, but q[status_eq] can opt into inactive" do
       active = create(:real_estate, status: "active")
       inactive = create(:real_estate, :inactive)

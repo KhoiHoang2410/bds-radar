@@ -19,6 +19,25 @@ RSpec.describe RealEstate, type: :model do
     expect(build(:real_estate, latitude: nil, longitude: nil).map_url).to be_nil
   end
 
+  describe "#price_per_m2" do
+    it "computes price / area (VND per m²)" do
+      re = build(:real_estate, price: 5_000_000_000, area: 50.0)
+      expect(re.price_per_m2).to eq(100_000_000)
+    end
+
+    it "returns nil when area is blank" do
+      expect(build(:real_estate, area: nil).price_per_m2).to be_nil
+    end
+
+    it "returns nil when area is zero" do
+      expect(build(:real_estate, area: 0).price_per_m2).to be_nil
+    end
+
+    it "returns nil when price is blank" do
+      expect(build(:real_estate, price: nil).price_per_m2).to be_nil
+    end
+  end
+
   it "exposes the canonical province via crawl_province, separate from the raw string" do
     province = create(:province, name: "Hồ Chí Minh")
     re = create(:real_estate, crawl_province: province, province: "Tp Hồ Chí Minh")

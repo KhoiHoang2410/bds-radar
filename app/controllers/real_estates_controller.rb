@@ -2,6 +2,7 @@ class RealEstatesController < ApplicationController
   # GET /real_estates — the analytics API. Filter via ransack q[...] predicates:
   #   q[province_id_eq], q[ward_id_eq], q[district_or_city_cont], q[type_eq],
   #   q[price_gteq]/q[price_lteq], q[area_gteq]/q[area_lteq],
+  #   q[price_per_m2_gteq]/q[price_per_m2_lteq] (computed VND/m², null/zero area excluded),
   #   q[project_name_cont], q[project_external_id_eq],
   #   bbox = q[latitude_gteq]/q[latitude_lteq] + q[longitude_gteq]/q[longitude_lteq].
   # Defaults to active rows unless q[status_eq] is given. Paginated via pagy (25/page).
