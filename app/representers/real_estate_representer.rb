@@ -5,6 +5,7 @@ class RealEstateRepresenter < Roar::Decorator
   property :type
   property :price
   property :area, getter: ->(*) { area&.to_f }
+  property :price_per_m2, getter: ->(*) { price_per_m2&.to_f } # computed VND/m², nil when not computable
   property :province_id
   property :province
   property :district_or_city

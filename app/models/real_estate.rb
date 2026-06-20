@@ -18,14 +18,33 @@ class RealEstate < ApplicationRecord
   scope :inactive, -> { where(status: "inactive") }
 
   # Ransack allowlist (filtering): province → province_id, ward → ward_id,
-  # district raw, type/status, price/area ranges, and lat/lng (bbox = *_gteq/_lteq).
+  # district raw, type/status, price/area ranges, computed price_per_m2 range,
+  # and lat/lng (bbox = *_gteq/_lteq).
   def self.ransackable_attributes(_auth = nil)
-    %w[province_id ward_id district_or_city type status price area latitude longitude
+    %w[province_id ward_id district_or_city type status price area price_per_m2 latitude longitude
        bedrooms bathrooms posted_at project_name project_external_id]
   end
 
   def self.ransackable_associations(_auth = nil)
     []
+  end
+
+  # Computed price/m² (VND per m²) filter. price is bigint, area is decimal;
+  # NULLIF(area, 0) makes the division null for zero/null area so those rows fall
+  # out of any q[price_per_m2_gteq]/_lteq ranged filter instead of matching.
+  ransacker :price_per_m2 do |parent|
+    Arel::Nodes::Division.new(
+      Arel::Nodes::NamedFunction.new("CAST", [ Arel::Nodes::As.new(parent.table[:price], Arel.sql("numeric")) ]),
+      Arel::Nodes::NamedFunction.new("NULLIF", [ parent.table[:area], Arel::Nodes.build_quoted(0) ])
+    )
+  end
+
+  # Price per square-meter (VND/m²), computed not stored. Nil-safe: nil when price
+  # or area is blank, or area is zero (matches the ransacker's NULLIF guard).
+  def price_per_m2
+    return nil if price.blank? || area.blank? || area.zero?
+
+    price / area
   end
 
   # Derived from coords, never stored (ADR-0001).
