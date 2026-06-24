@@ -1,0 +1,56 @@
+---
+config:
+  theme: base
+  themeVariables:
+    primaryColor: "#eefaf0"
+    primaryBorderColor: "#2f8f5b"
+    lineColor: "#5b6b7d"
+    fontSize: "15px"
+---
+flowchart TB
+    CLIENT(["Client / map UI"])
+
+    subgraph CTRL["RealEstatesController (API-only, JSON only out)"]
+        direction TB
+        BASE["base_scope<br/>RealEstate.active by default<br/>(RealEstate.all only if q[status_eq] given)"]
+        RANSACK["ransack(params[:q]).result<br/><b>allowlisted</b> by ransackable_attributes:<br/>province_id_eq · ward_id_eq · type_eq<br/>price/area _gteq/_lteq · price_per_m2 (computed)<br/>project_name_cont · bbox lat/lng _gteq/_lteq"]
+        BASE -- "I2 / M2" --> RANSACK
+    end
+
+    subgraph IDX["GET /real_estates  (index — I#)"]
+        ORDER["order(created_at: :desc)"]
+        PAGY["pagy(scope)<br/>page 1 / 25-per-page, cap 100"]
+        ORDER -- "I4 · paginate (runs SQL)" --> PAGY
+    end
+
+    subgraph MAP["GET /real_estates/map  (heatmap — M#, ADR-0003)"]
+        AGG["MapGridAggregator.call(scope, precision)<br/>snap lat/lng to bins → count,<br/>median_price, median price/m² per cell"]
+    end
+
+    SHOW["GET /real_estates/:id  (show — S#)<br/>RealEstate.find(id)"]
+
+    subgraph REP["roar representers → JSON"]
+        direction TB
+        R1["RealEstatesRepresenter<br/>(collection + pagination object)"]
+        R2["MapCellsRepresenter (cells + precision)"]
+        R3["RealEstateRepresenter (single)"]
+    end
+
+    DBRE[("RealEstate table")]
+
+    CLIENT -- "I1 · GET /real_estates?q[...]&page=" --> BASE
+    CLIENT -- "M1 · GET /real_estates/map?q[...]&precision=" --> BASE
+    CLIENT -- "S1 · GET /real_estates/:id" --> SHOW
+
+    RANSACK -- "I3 · index path" --> ORDER
+    RANSACK -- "M3 · map path" --> AGG
+    RANSACK -. "I4 · SQL where/order" .-> DBRE
+    AGG -. "M4 · pluck lat,lng,price,area" .-> DBRE
+    SHOW -. "S2 · find" .-> DBRE
+
+    PAGY -- "I5" --> R1
+    AGG -- "M5" --> R2
+    SHOW -- "S3" --> R3
+    R1 -- "I6 · 200 JSON" --> CLIENT
+    R2 -- "M6 · 200 JSON" --> CLIENT
+    R3 -- "S4 · 200 JSON" --> CLIENT

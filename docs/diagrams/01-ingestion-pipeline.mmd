@@ -1,0 +1,55 @@
+---
+config:
+  theme: base
+  themeVariables:
+    primaryColor: "#eef4ff"
+    primaryBorderColor: "#3b6fb5"
+    lineColor: "#5b6b7d"
+    fontSize: "15px"
+---
+flowchart TB
+    subgraph CRON["sidekiq-cron (Sidekiq server process)"]
+        direction LR
+        FC["fetch cron<br/>0 */6 * * *"]
+        NC["normalize cron<br/>0 */4 * * *"]
+    end
+
+    subgraph FETCH["FETCH (F#) — crawl Suppliers, write RealEstateSource"]
+        direction TB
+        FM["Fetch::MasterJob<br/><i>fan-out</i>"]
+        FS["Fetch::SupplierJob  (supplier × Province)<br/><b>sidekiq-throttled</b>: concurrency 1 per supplier:province<br/>(= unique-job guard) + per-supplier rate threshold"]
+        BASE["Suppliers::Base — transport only<br/>Faraday GET + retry/backoff, raw body"]
+        SUB["Supplier subclass<br/>nhatot = JSON · mogi = HTML<br/>parse + normalize → Listing"]
+        FM -- "F2 · per scheduled Province × SUPPLIERS" --> FS
+        FS -- "F3 · each_listing(province, page)" --> BASE
+        BASE -- "F4 · raw body" --> SUB
+        SUB -- "F5 · Listing structs" --> FS
+    end
+
+    subgraph TX["One transaction per (supplier, province) — ADR-0002 fetch-then-store"]
+        direction TB
+        DEACT["mark whole scope status=inactive"]
+        UPS["upsert each Listing → status=active<br/>unique (supplier, external_id), bump last_seen_at"]
+        DEACT -- "F7" --> UPS
+    end
+
+    subgraph NORM["NORMALIZE (N#) — build RealEstate from RealEstateSource"]
+        direction TB
+        NM["Normalize::MasterJob<br/><i>fan-out per scheduled Province</i>"]
+        NP["Normalize::ProvinceJob (province_id)<br/>all suppliers for the province"]
+        GATE["RealEstateContract gate<br/>(mandatory fields → skip if missing)"]
+        ENRICH["ProjectMatcher.match (title→project)<br/>Ward.match (raw ward → ward_id)"]
+        NM -- "N2 · ProvinceJob per province" --> NP
+        NP -- "N4" --> ENRICH
+        ENRICH -- "N5" --> GATE
+    end
+
+    DBSRC[("RealEstateSource<br/>raw + pre-parsed copy of a Listing")]
+    DBRE[("RealEstate<br/>normalized, 1:1 by real_estate_source_id")]
+
+    FC -- "F1" --> FM
+    NC -- "N1" --> NM
+    FS -- "F6 · collect ALL pages in memory, then" --> TX
+    UPS -- "F8 · save!" --> DBSRC
+    NP -- "N3 · reads province.real_estate_sources" --> DBSRC
+    GATE -- "N6 · upsert (find_or_initialize_by source_id)" --> DBRE
